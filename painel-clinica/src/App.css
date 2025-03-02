@@ -1,0 +1,51 @@
+/* 🔹 Ajustando o layout principal */
+#root {
+  display: flex;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+/* 🔹 Ajustando o conteúdo principal para ocupar toda a tela */
+.main-content {
+  flex-grow: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+/* 🔹 Melhorando a responsividade */
+@media (max-width: 768px) {
+  #root {
+    flex-direction: column;
+  }
+  
+  .main-content {
+    padding: 1rem;
+  }
+}
+
+/* 🔹 Ajuste do Sidebar */
+.sidebar {
+  width: 220px;
+  height: 100vh;
+  background-color: #F5F5F5;
+  border-right: 1px solid #ddd;
+}
+
+/* 🔹 Melhorando as estatísticas do Dashboard */
+.dashboard-card {
+  padding: 2rem;
+  text-align: center;
+  border-radius: 10px;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-card h4 {
+  margin-bottom: 0.5rem;
+}
+
+/* 🔹 Removendo estilos desnecessários */
+.logo, .read-the-docs {
+  display: none;
+}
