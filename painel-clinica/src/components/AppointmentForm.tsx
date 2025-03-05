@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogActions, DialogContent, DialogTitle, TextField, Button, MenuItem } from "@mui/material";
+import { Dialog, DialogActions, DialogContent, DialogTitle, TextField, Button, MenuItem, Box } from "@mui/material";
 import { createAppointment, updateAppointment } from "../services/appointmentService";
 import { getTherapists } from "../services/threapistService";
 import { getClients } from "../services/clientsService";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import dayjs, { Dayjs } from "dayjs";
 
 interface AppointmentFormProps {
   open: boolean;
@@ -16,32 +14,43 @@ interface AppointmentFormProps {
 const AppointmentForm = ({ open, onClose, onSave, appointment }: AppointmentFormProps) => {
   const [therapists, setTherapists] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Dayjs | null>(dayjs());
   const [formData, setFormData] = useState({
     clientId: "",
     therapistId: "",
+    date: new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
     startTime: "",
     endTime: "",
+    notes: ""
   });
 
   useEffect(() => {
     const fetchData = async () => {
-      const therapistsData = await getTherapists();
-      const clientsData = await getClients();
-      setTherapists(therapistsData);
-      setClients(clientsData);
+      try {
+        const therapistsData = await getTherapists();
+        const clientsData = await getClients();
+        setTherapists(therapistsData);
+        setClients(clientsData);
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+      }
     };
 
     fetchData();
 
     if (appointment) {
+      // Formatar a data se ela existir
+      const appointmentDate = appointment.date 
+        ? new Date(appointment.date).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+        
       setFormData({
-        clientId: appointment.client?.id || "",
-        therapistId: appointment.therapist?.id || "",
-        startTime: appointment.startTime,
-        endTime: appointment.endTime,
+        clientId: appointment.clientId || "",
+        therapistId: appointment.therapistId || "",
+        date: appointmentDate,
+        startTime: appointment.startTime || "",
+        endTime: appointment.endTime || "",
+        notes: appointment.notes || ""
       });
-      setSelectedDate(dayjs(appointment.date));
     }
   }, [appointment]);
 
@@ -50,18 +59,17 @@ const AppointmentForm = ({ open, onClose, onSave, appointment }: AppointmentForm
   };
 
   const handleSubmit = async () => {
-    const appointmentData = {
-      ...formData,
-      date: selectedDate ? selectedDate.format("YYYY-MM-DD") : "",
-    };
-
-    if (appointment) {
-      await updateAppointment(appointment.id, appointmentData);
-    } else {
-      await createAppointment(appointmentData);
+    try {
+      if (appointment) {
+        await updateAppointment(appointment.id, formData);
+      } else {
+        await createAppointment(formData);
+      }
+      onSave();
+      onClose();
+    } catch (error) {
+      console.error("Erro ao salvar agendamento:", error);
     }
-    onSave();
-    onClose();
   };
 
   return (
@@ -100,16 +108,51 @@ const AppointmentForm = ({ open, onClose, onSave, appointment }: AppointmentForm
           ))}
         </TextField>
 
-        {/* 🔹 Calendário para selecionar a data */}
-        <DatePicker
-          label="Data do Agendamento"
-          value={selectedDate}
-          onChange={(newValue) => setSelectedDate(newValue)}
-          format="DD/MM/YYYY"
-        />
+        <Box sx={{ mt: 2, mb: 1 }}>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Data do Agendamento"
+            name="date"
+            type="date"
+            value={formData.date}
+            onChange={handleChange}
+            InputLabelProps={{ shrink: true }}
+          />
+        </Box>
 
-        <TextField fullWidth margin="normal" label="Hora Inicial" name="startTime" type="time" value={formData.startTime} onChange={handleChange} />
-        <TextField fullWidth margin="normal" label="Hora Final" name="endTime" type="time" value={formData.endTime} onChange={handleChange} />
+        <TextField 
+          fullWidth 
+          margin="normal" 
+          label="Hora Inicial" 
+          name="startTime" 
+          type="time" 
+          value={formData.startTime} 
+          onChange={handleChange} 
+          InputLabelProps={{ shrink: true }} 
+        />
+        
+        <TextField 
+          fullWidth 
+          margin="normal" 
+          label="Hora Final" 
+          name="endTime" 
+          type="time" 
+          value={formData.endTime} 
+          onChange={handleChange} 
+          InputLabelProps={{ shrink: true }} 
+        />
+        
+        <TextField
+          fullWidth
+          margin="normal"
+          label="Observações"
+          name="notes"
+          multiline
+          rows={3}
+          value={formData.notes}
+          onChange={handleChange}
+        />
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} color="secondary">Cancelar</Button>

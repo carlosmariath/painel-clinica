@@ -1,156 +1,395 @@
-import { useEffect, useState } from "react";
-import { Container, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Tabs, Tab, TextField, MenuItem, Button } from "@mui/material";
-import { getAllAppointments, getClientAppointments, getTherapistAppointments, cancelAppointment, deleteAppointment, updateAppointmentStatus } from "../services/appointmentService";
-import { getTherapists } from "../services/threapistService";
-import { useAuth } from "../context/AuthContext";
-import AppointmentForm from "../components/AppointmentForm";
-import dayjs from "dayjs";
+import { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Button,
+  Card,
+  CardContent,
+  Stack,
+  TextField,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  MenuItem,
+  InputAdornment,
+  Select,
+  FormControl,
+  InputLabel,
+  SelectChangeEvent
+} from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import EventAvailableIcon from "@mui/icons-material/EventAvailable";
-import AddIcon from "@mui/icons-material/Add";
+import AppointmentForm from "../components/AppointmentForm";
+import { getAllAppointments, deleteAppointment } from "../services/appointmentService";
+import { getClients } from "../services/clientsService";
+import { getTherapists } from "../services/threapistService";
 import { useNotification } from "../components/Notification";
 
+// Função formatadora de data para o formato brasileiro
+const formatarData = (dateString: string): string => {
+  if (!dateString) return "";
+  const data = new Date(dateString);
+  return data.toLocaleDateString('pt-BR');
+};
+
 const Appointments = () => {
-  const { user } = useAuth();
-  const { showNotification } = useNotification();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(0);
   const [openForm, setOpenForm] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<any | null>(null);
-  const [therapists, setTherapists] = useState<any[]>([]);
-  const [filterDate, setFilterDate] = useState("");
-  const [filterTherapist, setFilterTherapist] = useState("");
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        let data;
-        if (activeTab === 0) {
-          data = await getClientAppointments();
-        } else if (activeTab === 1) {
-          data = await getTherapistAppointments();
-        } else {
-          data = await getAllAppointments();
-        }
-        setAppointments(data);
-        const therapistsData = await getTherapists();
-        setTherapists(therapistsData);
-      } catch (error) {
-        showNotification("Erro ao buscar agendamentos", "error");
-      }
-      setLoading(false);
-    };
-
-    fetchData();
-  }, [activeTab]);
-
-  // 🔹 Filtra os agendamentos conforme a seleção do usuário
-  const filteredAppointments = appointments.filter((appointment) => {
-    return (
-      (!filterDate || dayjs(appointment.date).format("YYYY-MM-DD") === filterDate) &&
-      (!filterTherapist || appointment.therapist?.id === filterTherapist)
-    );
+  const [openConfirm, setOpenConfirm] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<any>(null);
+  
+  // Filtros
+  const [filters, setFilters] = useState({
+    clientId: "",
+    therapistId: "",
+    startDate: "",
+    endDate: "",
+    searchTerm: ""
   });
 
-  const handleOpenForm = (appointment?: any) => {
-    setSelectedAppointment(appointment || null);
+  const [clients, setClients] = useState<any[]>([]);
+  const [therapists, setTherapists] = useState<any[]>([]);
+  const [filteredAppointments, setFilteredAppointments] = useState<any[]>([]);
+  const { showNotification } = useNotification();
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [appointmentsData, clientsData, therapistsData] = await Promise.all([
+        getAllAppointments(),
+        getClients(),
+        getTherapists()
+      ]);
+
+      setAppointments(appointmentsData);
+      setFilteredAppointments(appointmentsData);
+      setClients(clientsData);
+      setTherapists(therapistsData);
+      showNotification("Dados carregados com sucesso", "success");
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+      showNotification("Erro ao carregar dados dos agendamentos", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenForm = (appointment = null) => {
+    setSelectedAppointment(appointment);
     setOpenForm(true);
   };
 
+  const handleCloseForm = () => {
+    setOpenForm(false);
+    setSelectedAppointment(null);
+  };
+
+  const handleDelete = (appointment: any) => {
+    setAppointmentToDelete(appointment);
+    setOpenConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!appointmentToDelete) return;
+    
+    try {
+      await deleteAppointment(appointmentToDelete.id);
+      await fetchData();
+      showNotification("Agendamento excluído com sucesso", "success");
+    } catch (error) {
+      console.error("Erro ao excluir agendamento:", error);
+      showNotification("Erro ao excluir agendamento", "error");
+    } finally {
+      setOpenConfirm(false);
+      setAppointmentToDelete(null);
+    }
+  };
+
+  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+    const name = e.target.name as string;
+    const value = e.target.value as string;
+    setFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSelectChange = (e: SelectChangeEvent) => {
+    const name = e.target.name as string;
+    const value = e.target.value;
+    setFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  useEffect(() => {
+    applyFilters();
+  }, [filters, appointments]);
+
+  const applyFilters = () => {
+    let filtered = [...appointments];
+
+    // Filtrar por cliente
+    if (filters.clientId) {
+      filtered = filtered.filter(app => app.clientId === filters.clientId);
+    }
+
+    // Filtrar por terapeuta
+    if (filters.therapistId) {
+      filtered = filtered.filter(app => app.therapistId === filters.therapistId);
+    }
+
+    // Filtrar por data de início
+    if (filters.startDate) {
+      filtered = filtered.filter(app => new Date(app.date) >= new Date(filters.startDate));
+    }
+
+    // Filtrar por data de fim
+    if (filters.endDate) {
+      filtered = filtered.filter(app => new Date(app.date) <= new Date(filters.endDate));
+    }
+
+    // Filtrar por termo de busca
+    if (filters.searchTerm) {
+      const term = filters.searchTerm.toLowerCase();
+      filtered = filtered.filter(app => {
+        const clientName = clients.find(c => c.id === app.clientId)?.name || "";
+        const therapistName = therapists.find(t => t.id === app.therapistId)?.name || "";
+        
+        return (
+          clientName.toLowerCase().includes(term) ||
+          therapistName.toLowerCase().includes(term) ||
+          app.notes?.toLowerCase().includes(term) ||
+          app.startTime?.includes(term) ||
+          app.endTime?.includes(term)
+        );
+      });
+    }
+
+    setFilteredAppointments(filtered);
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      clientId: "",
+      therapistId: "",
+      startDate: "",
+      endDate: "",
+      searchTerm: ""
+    });
+  };
+
+  const getClientName = (clientId: string) => {
+    return clients.find(client => client.id === clientId)?.name || "Cliente não encontrado";
+  };
+
+  const getTherapistName = (therapistId: string) => {
+    return therapists.find(therapist => therapist.id === therapistId)?.name || "Terapeuta não encontrado";
+  };
+
   return (
-    <Container>
-      <Typography variant="h4" sx={{ mb: 3 }}>📅 Gestão de Agendamentos</Typography>
-
-      <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
-        <Tab label="Meus Agendamentos" />
-        <Tab label="Meus Atendimentos" />
-        <Tab label="Todos os Agendamentos" />
-      </Tabs>
-
-      {/* 🔹 Botão de Novo Agendamento */}
-      <Button
-        variant="contained"
-        color="primary"
-        sx={{ mt: 2, mb: 2 }}
-        onClick={() => handleOpenForm()}
-        startIcon={<AddIcon />}
-      >
-        Novo Agendamento
-      </Button>
-
-      {/* 🔹 Filtros */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Typography variant="h6">Filtros</Typography>
-        <TextField
-          label="Data"
-          type="date"
-          value={filterDate}
-          onChange={(e) => setFilterDate(e.target.value)}
-          sx={{ mr: 2, mt: 1 }}
-        />
-        <TextField
-          select
-          label="Terapeuta"
-          value={filterTherapist}
-          onChange={(e) => setFilterTherapist(e.target.value)}
-          sx={{ mr: 2, mt: 1 }}
+    <Box sx={{ p: 3, flexGrow: 1 }}>
+      <Box sx={{ mb: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Agendamentos
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => handleOpenForm()}
         >
-          <MenuItem value="">Todos</MenuItem>
-          {therapists.map((therapist) => (
-            <MenuItem key={therapist.id} value={therapist.id}>
-              {therapist.name}
-            </MenuItem>
-          ))}
-        </TextField>
-        <Button onClick={() => { setFilterDate(""); setFilterTherapist(""); }} variant="outlined" sx={{ mt: 1 }}>
-          Limpar Filtros
+          Novo Agendamento
         </Button>
-      </Paper>
+      </Box>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Cliente</TableCell>
-              <TableCell>Terapeuta</TableCell>
-              <TableCell>Data</TableCell>
-              <TableCell>Hora Inicial</TableCell>
-              <TableCell>Hora Final</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Ações</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredAppointments.map((appointment) => (
-              <TableRow key={appointment.id}>
-                <TableCell>{appointment.client?.name ?? "N/A"}</TableCell>
-                <TableCell>{appointment.therapist?.name ?? "N/A"}</TableCell>
-                <TableCell>{dayjs(appointment.date).format("DD/MM/YYYY")}</TableCell>
-                <TableCell>{appointment.startTime}</TableCell>
-                <TableCell>{appointment.endTime}</TableCell>
-                <TableCell>{appointment.status}</TableCell>
-                <TableCell>
-                  <IconButton onClick={() => handleOpenForm(appointment)} title="Editar">
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton title="Alterar Status">
-                    <EventAvailableIcon />
-                  </IconButton>
-                  <IconButton color="error" onClick={() => deleteAppointment(appointment.id)} title="Cancelar">
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
+      {/* Filtros */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>Filtros</Typography>
+          <Stack spacing={2}>
+            <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
+              <FormControl fullWidth>
+                <InputLabel id="cliente-label">Cliente</InputLabel>
+                <Select
+                  labelId="cliente-label"
+                  label="Cliente"
+                  name="clientId"
+                  value={filters.clientId}
+                  onChange={handleSelectChange}
+                >
+                  <MenuItem value="">Todos os clientes</MenuItem>
+                  {clients.map(client => (
+                    <MenuItem key={client.id} value={client.id}>
+                      {client.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl fullWidth>
+                <InputLabel id="terapeuta-label">Terapeuta</InputLabel>
+                <Select
+                  labelId="terapeuta-label"
+                  label="Terapeuta"
+                  name="therapistId"
+                  value={filters.therapistId}
+                  onChange={handleSelectChange}
+                >
+                  <MenuItem value="">Todos os terapeutas</MenuItem>
+                  {therapists.map(therapist => (
+                    <MenuItem key={therapist.id} value={therapist.id}>
+                      {therapist.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
+              <TextField
+                label="Data Inicial"
+                name="startDate"
+                type="date"
+                value={filters.startDate}
+                onChange={handleFilterChange}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+
+              <TextField
+                label="Data Final"
+                name="endDate"
+                type="date"
+                value={filters.endDate}
+                onChange={handleFilterChange}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+              />
+            </Box>
+
+            <Box sx={{ display: "flex", gap: 2 }}>
+              <TextField
+                label="Buscar"
+                name="searchTerm"
+                value={filters.searchTerm}
+                onChange={handleFilterChange}
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Button variant="outlined" onClick={resetFilters}>
+                Limpar Filtros
+              </Button>
+            </Box>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* Lista de Agendamentos */}
+      {loading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Cliente</TableCell>
+                <TableCell>Terapeuta</TableCell>
+                <TableCell>Data</TableCell>
+                <TableCell>Horário Início</TableCell>
+                <TableCell>Horário Fim</TableCell>
+                <TableCell>Observações</TableCell>
+                <TableCell align="right">Ações</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {filteredAppointments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center">
+                    Nenhum agendamento encontrado.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredAppointments.map((appointment) => (
+                  <TableRow key={appointment.id}>
+                    <TableCell>{getClientName(appointment.clientId)}</TableCell>
+                    <TableCell>{getTherapistName(appointment.therapistId)}</TableCell>
+                    <TableCell>{formatarData(appointment.date)}</TableCell>
+                    <TableCell>{appointment.startTime}</TableCell>
+                    <TableCell>{appointment.endTime}</TableCell>
+                    <TableCell>
+                      {appointment.notes && appointment.notes.length > 30
+                        ? `${appointment.notes.substring(0, 30)}...`
+                        : appointment.notes}
+                    </TableCell>
+                    <TableCell align="right">
+                      <IconButton
+                        color="primary"
+                        onClick={() => handleOpenForm(appointment)}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        color="error"
+                        onClick={() => handleDelete(appointment)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
-      <AppointmentForm open={openForm} onClose={() => setOpenForm(false)} onSave={() => setOpenForm(false)} appointment={selectedAppointment} />
-    </Container>
+      {/* Formulário de Agendamento */}
+      <AppointmentForm
+        open={openForm}
+        onClose={handleCloseForm}
+        onSave={fetchData}
+        appointment={selectedAppointment}
+      />
+
+      {/* Diálogo de Confirmação de Exclusão */}
+      <Dialog open={openConfirm} onClose={() => setOpenConfirm(false)}>
+        <DialogTitle>Confirmar Exclusão</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenConfirm(false)} color="primary">
+            Cancelar
+          </Button>
+          <Button onClick={confirmDelete} color="error">
+            Excluir
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 
