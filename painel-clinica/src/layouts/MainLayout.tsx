@@ -36,7 +36,7 @@ const MainLayout = () => {
             display: 'flex',
             flexDirection: 'column',
             width: { xs: '100%', md: `calc(100% - 280px)` },
-            ml: { xs: 0, md: '280px' },
+            ml: { xs: 0, md: '0px' },
             transition: "all 0.3s ease",
             opacity: pageReady ? 1 : 0,
             transform: pageReady ? 'translateY(0)' : 'translateY(10px)',
