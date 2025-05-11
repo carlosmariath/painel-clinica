@@ -1,5 +1,10 @@
 {
   "dependencies": {
-    "notistack": "^3.0.2"
+    "@hookform/resolvers": "^5.0.1",
+    "@mui/x-date-pickers": "^8.3.0",
+    "@types/node": "^22.15.17",
+    "notistack": "^3.0.2",
+    "react-hook-form": "^7.56.3",
+    "yup": "^1.6.1"
   }
 }

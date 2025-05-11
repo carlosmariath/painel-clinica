@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Branch } from '../types/branch';
 import { getBranches } from '../services/branchService';
 import { useAuth } from './AuthContext';
 
+// Interface para o contexto de filial
 interface BranchContextType {
   currentBranch: Branch | null;
   branches: Branch[];
@@ -14,12 +15,30 @@ interface BranchContextType {
   isAdmin: boolean;
   allBranches: boolean;
   setAllBranches: (value: boolean) => void;
+  setBranches: (branches: Branch[]) => void;
+  loadBranches: () => Promise<void>;
 }
 
-export const BranchContext = createContext<BranchContextType | undefined>(undefined);
+// Alterando a definição do contexto para exportá-lo diretamente
+export const BranchContext = createContext<BranchContextType>({
+  currentBranch: null,
+  branches: [],
+  loading: false,
+  error: null,
+  setCurrentBranch: () => {},
+  setCurrentBranchById: () => {},
+  isAdmin: false,
+  allBranches: false,
+  setAllBranches: () => {},
+  setBranches: () => {},
+  loadBranches: async () => {}
+});
+
+// Adicionando esta exportação para garantir compatibilidade com importações existentes
+export default BranchContext;
 
 interface BranchProviderProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 /**
@@ -37,48 +56,44 @@ export const BranchProvider: React.FC<BranchProviderProps> = ({ children }) => {
   const [allBranches, setAllBranches] = useState(isAdmin);
 
   // Carregar filiais ao iniciar
-  useEffect(() => {
-    const fetchBranches = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const data = await getBranches(false); // apenas filiais ativas
-        setBranches(data);
-        
-        // Se não temos filial selecionada e há filiais, selecionar a primeira
-        const savedBranchId = localStorage.getItem('currentBranchId');
-        
-        if (data.length > 0 && !allBranches) {
-          if (savedBranchId) {
-            // Tentar carregar a filial salva
-            const savedBranch = data.find(b => b.id === savedBranchId);
-            if (savedBranch) {
-              setCurrentBranch(savedBranch);
-            } else {
-              // Se a filial salva não foi encontrada, usar a primeira
-              setCurrentBranch(data[0]);
-              localStorage.setItem('currentBranchId', data[0].id);
-            }
+  const loadBranches = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const data = await getBranches(false); // apenas filiais ativas
+      setBranches(data);
+      
+      // Se não temos filial selecionada e há filiais, selecionar a primeira
+      const savedBranchId = localStorage.getItem('currentBranchId');
+      
+      if (data.length > 0 && !allBranches) {
+        if (savedBranchId) {
+          // Tentar carregar a filial salva
+          const savedBranch = data.find(b => b.id === savedBranchId);
+          if (savedBranch) {
+            setCurrentBranch(savedBranch);
           } else {
-            // Se não há filial salva, usar a primeira
+            // Se a filial salva não foi encontrada, usar a primeira
             setCurrentBranch(data[0]);
             localStorage.setItem('currentBranchId', data[0].id);
           }
-        } else if (allBranches) {
-          // Se estamos no modo 'todas as filiais', não selecionamos nenhuma filial específica
-          setCurrentBranch(null);
+        } else {
+          // Se não há filial salva, usar a primeira
+          setCurrentBranch(data[0]);
+          localStorage.setItem('currentBranchId', data[0].id);
         }
-      } catch (err) {
-        setError('Erro ao carregar filiais');
-        console.error('Erro ao carregar filiais:', err);
-      } finally {
-        setLoading(false);
+      } else if (allBranches) {
+        // Se estamos no modo 'todas as filiais', não selecionamos nenhuma filial específica
+        setCurrentBranch(null);
       }
-    };
-
-    fetchBranches();
-  }, [allBranches]);
+    } catch (err) {
+      setError('Erro ao carregar filiais');
+      console.error('Erro ao carregar filiais:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Atualizar o estado de "todas as filiais" quando o usuário mudar
   useEffect(() => {
@@ -106,6 +121,27 @@ export const BranchProvider: React.FC<BranchProviderProps> = ({ children }) => {
     }
   };
 
+  // Efeito para restaurar a filial selecionada do localStorage
+  useEffect(() => {
+    const savedBranchId = localStorage.getItem('currentBranchId');
+    if (savedBranchId && branches.length > 0) {
+      const savedBranch = branches.find(b => b.id === savedBranchId);
+      if (savedBranch) {
+        setCurrentBranch(savedBranch);
+      }
+    }
+  }, [branches]);
+
+  // Modificar setCurrentBranch para salvar a seleção
+  const handleSetCurrentBranch = (branch: Branch | null) => {
+    setCurrentBranch(branch);
+    if (branch) {
+      localStorage.setItem('currentBranchId', branch.id);
+    } else {
+      localStorage.removeItem('currentBranchId');
+    }
+  };
+
   return (
     <BranchContext.Provider
       value={{
@@ -113,11 +149,13 @@ export const BranchProvider: React.FC<BranchProviderProps> = ({ children }) => {
         branches,
         loading,
         error,
-        setCurrentBranch,
+        setCurrentBranch: handleSetCurrentBranch,
         setCurrentBranchById,
         isAdmin,
         allBranches,
-        setAllBranches
+        setAllBranches,
+        setBranches,
+        loadBranches
       }}
     >
       {children}

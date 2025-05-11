@@ -17,6 +17,12 @@ import Branches from "./pages/Branches";
 import Services from "./pages/Services";
 import Users from "./pages/Users";
 import Roles from "./pages/Roles";
+import TherapyPlans from './pages/TherapyPlans';
+import Subscriptions from './pages/Subscriptions';
+import Finance from './pages/Finance';
+import TherapyPlanDemo from './pages/TherapyPlanDemo';
+import FinanceDemo from './pages/FinanceDemo';
+import SubscriptionsDemo from './pages/SubscriptionsDemo';
 
 const PrivateRoute = ({ children, requiredRoles = [] }: { children: JSX.Element, requiredRoles?: string[] }) => {
   const { token, user } = useAuth();
@@ -72,6 +78,12 @@ const AppRoutes = () => {
           <Route path="/knowledge-entries" element={<KnowledgeEntries />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/frequent-questions" element={<FrequentQuestions />} />
+          <Route path="/planos" element={<TherapyPlans />} />
+          <Route path="/assinaturas" element={<Subscriptions />} />
+          <Route path="/financas" element={<Finance />} />
+          <Route path="/planos-demo" element={<TherapyPlanDemo />} />
+          <Route path="/financas-demo" element={<FinanceDemo />} />
+          <Route path="/assinaturas-demo" element={<SubscriptionsDemo />} />
         </Route>
         {/* Rota de fallback - redireciona para dashboard ou login dependendo da autenticação */}
         <Route path="*" element={<Navigate to="/" />} />

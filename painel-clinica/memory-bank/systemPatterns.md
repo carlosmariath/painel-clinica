@@ -209,6 +209,30 @@ src/
   - Relacionamentos: Appointments, Clients, Therapists
   - Atributos: name, address, phone, isActive, createdAt, updatedAt
 
+- **TherapyPlan (Plano de Terapia)**
+  - Relacionamentos: Branch, Subscriptions
+  - Atributos: name, description, totalSessions, totalPrice, validityDays, isActive
+
+- **Subscription (Assinatura)**
+  - Relacionamentos: TherapyPlan, Client, Branch, SessionConsumption
+  - Atributos: status, token, tokenExpiresAt, acceptedAt, sessionsLeft, validUntil, cancellationReason
+
+- **SessionConsumption (Consumo de Sessão)**
+  - Relacionamentos: Subscription, Appointment
+  - Atributos: consumedAt
+
+- **FinancialTransaction (Transação Financeira)**
+  - Relacionamentos: Client, Branch, PaymentMethod, FinanceCategory
+  - Atributos: type, amount, description, category, date, reference, referenceType
+
+- **FinanceCategory (Categoria Financeira)**
+  - Relacionamentos: FinancialTransaction
+  - Atributos: name, type, description
+
+- **PaymentMethod (Método de Pagamento)**
+  - Relacionamentos: FinancialTransaction
+  - Atributos: name, description, isActive
+
 ### Padrões de Validação
 
 - Validação no cliente para feedback imediato
@@ -287,3 +311,61 @@ Esta estrutura garante que:
 - A localização (i18n) seja consistente em toda a aplicação
 - As notificações possam ser disparadas de qualquer componente
 - O contexto de filial esteja acessível onde necessário 
+
+### Sistema de Planos de Terapia
+
+O sistema implementa um padrão de assinatura de planos de terapia com controle de sessões:
+
+1. **Fluxo de Assinatura**
+   - Criação de planos pela clínica (quantidade de sessões, validade, preço)
+   - Associação do plano a um cliente gerando uma assinatura
+   - Geração de token para aceite do cliente
+   - Após aceite, contabilização de sessões disponíveis
+   - Consumo automático de sessões a cada atendimento
+
+2. **Componentes Específicos**
+   - `TherapyPlanForm`: Formulário para criação e edição de planos
+   - `SubscriptionForm`: Formulário para associar planos a clientes
+   - `TransactionsTable`: Componente para exibir transações relacionadas
+
+3. **Estados de Assinatura**
+   ```
+   Fluxo de estados:
+   PENDING → ACTIVE → (COMPLETED ou EXPIRED ou CANCELED)
+
+   PENDING: Aguardando aceite do cliente
+   ACTIVE: Cliente aceitou e plano está ativo
+   COMPLETED: Todas as sessões foram utilizadas
+   EXPIRED: Prazo de validade expirou
+   CANCELED: Cancelado manualmente
+   ```
+
+4. **Integração com Agendamentos**
+   - Verificação automática de planos ativos ao criar agendamentos
+   - Consumo de sessões ao confirmar atendimento
+   - Atualização do contador de sessões restantes
+
+### Sistema Financeiro
+
+O sistema implementa um padrão de gestão financeira com categorização:
+
+1. **Tipos de Transação**
+   - Receitas (REVENUE): Valores recebidos pela clínica
+   - Despesas (EXPENSE): Valores pagos pela clínica
+
+2. **Componentes Específicos**
+   - `TransactionForm`: Formulário para registro de receitas e despesas
+   - `TransactionsTable`: Tabela para visualização de transações
+   - Relatórios de resumo financeiro com agrupamento por categorias
+
+3. **Categorização**
+   - Categorias para receitas: Planos, Consultas, Outros
+   - Categorias para despesas: Operacional, Pessoal, Impostos, Outros
+   - Métodos de pagamento configuráveis
+
+4. **Integração com Outros Módulos**
+   - Geração automática de transações financeiras a partir de:
+     - Criação de assinaturas de planos
+     - Confirmação de agendamentos
+     - Cancelamentos com penalidade
+   - Referências cruzadas entre transações e suas origens 

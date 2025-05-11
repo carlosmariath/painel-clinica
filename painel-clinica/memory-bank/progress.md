@@ -20,6 +20,28 @@ O Painel Clínica está em fase de desenvolvimento ativo, com funcionalidades es
 - [x] Listagem de próximos agendamentos
 - [ ] Métricas da base de conhecimento
 
+### Planos de Terapia (Novo)
+- [x] Cadastro e gestão de planos de terapia
+- [x] Configuração de número de sessões e validade
+- [x] Preço e status de ativação do plano
+- [x] Associação de planos a filiais
+- [x] Gestão de assinaturas de planos
+- [x] Sistema de token para aceite de planos pelo cliente
+- [x] Controle de sessões restantes
+- [x] Cancelamento de assinaturas com registro de motivo
+- [x] Consumo automático de sessões ao confirmar agendamentos
+- [ ] Relatórios de utilização de planos
+
+### Financeiro (Novo)
+- [x] Cadastro e gestão de transações financeiras
+- [x] Categorização de receitas e despesas
+- [x] Cadastro de métodos de pagamento
+- [x] Associação de transações a clientes e filiais
+- [x] Geração de transações a partir de outros eventos (planos, agendamentos)
+- [x] Relatórios financeiros com resumo de receitas/despesas
+- [x] Análise financeira por categorias
+- [ ] Exportação de relatórios financeiros
+
 ### Gestão de Clientes
 - [x] Listagem de clientes com filtros
 - [x] Cadastro de novos clientes
@@ -89,6 +111,13 @@ O Painel Clínica está em fase de desenvolvimento ativo, com funcionalidades es
 - [x] Categorias (/api/knowledge/categories)
 - [x] Perguntas Frequentes (/api/knowledge/frequent-questions)
 - [x] Filiais (/api/branches)
+- [x] Planos de Terapia (/api/therapy-plans)
+- [x] Assinaturas de Planos (/api/therapy-plans/subscriptions)
+- [x] Consumo de Sessões (/api/therapy-plans/consumption)
+- [x] Transações Financeiras (/api/finance/transactions)
+- [x] Categorias Financeiras (/api/finance/categories)
+- [x] Métodos de Pagamento (/api/finance/payment-methods)
+- [x] Relatórios Financeiros (/api/finance/summary)
 
 ### Desenvolvimento da API
 - [x] Validação de dados de entrada (DTOs)
@@ -122,6 +151,8 @@ O Painel Clínica está em fase de desenvolvimento ativo, com funcionalidades es
 1. **Correção de Bugs Críticos**
    - Resolver erro de relacionamento no Prisma para agendamentos
    - Corrigir inconsistências no DatePicker
+   - Corrigir erro no AppointmentForm.tsx relacionado à exportação do BranchContext
+   - Resolver problemas de tipagem com pacotes como react-hook-form
 
 2. **Ajustes de Integração API**
    - Finalizar padronização dos endpoints
@@ -149,12 +180,17 @@ O Painel Clínica está em fase de desenvolvimento ativo, com funcionalidades es
    - Problema: Parâmetros branchId nas funções de agendamento causavam erros TypeScript
    - Solução: Substituição de null por undefined e correção das funções getAvailableSlots
 
+4. **Integração de Módulos**
+   - Problema: Falta de integração entre módulos de agendamento, planos de terapia e financeiro
+   - Solução: Implementação de fluxos automáticos como consumo de sessões ao confirmar agendamentos e geração de transações financeiras
+
 ## Próximas Entregas Planejadas
 
 ### Curto Prazo (1-2 Semanas)
 - Correção dos bugs conhecidos
 - Finalização da integração da Base de Conhecimento
 - Melhorias na navegação e usabilidade
+- Refinamento dos relatórios financeiros e de planos de terapia
 
 ### Médio Prazo (1-2 Meses)
 - Implementação de perfis de usuário e controle de acesso

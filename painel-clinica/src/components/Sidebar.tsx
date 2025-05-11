@@ -29,7 +29,10 @@ import {
   Business,
   Settings,
   Lock,
-  Engineering
+  Engineering,
+  LocalOffer,
+  Payment,
+  CardMembership
 } from "@mui/icons-material";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -79,6 +82,40 @@ const menuItems: MenuItem[] = [
       { text: "Gerenciar Entradas", icon: <QuestionAnswer />, path: "/knowledge-entries" },
       { text: "Categorias", icon: <Category />, path: "/categories" },
       { text: "Perguntas Frequentes", icon: <HelpOutline />, path: "/frequent-questions" }
+    ]
+  },
+  {
+    text: 'Agenda',
+    icon: <Schedule />,
+    path: '/agenda',
+    roles: ['ADMIN', 'THERAPIST', 'MANAGER', 'RECEPTIONIST']
+  },
+  {
+    text: 'Planos de Terapia',
+    icon: <LocalOffer />,
+    path: '/planos',
+    roles: ['ADMIN', 'MANAGER']
+  },
+  {
+    text: 'Assinaturas',
+    icon: <CardMembership />,
+    path: '/assinaturas',
+    roles: ['ADMIN', 'MANAGER', 'RECEPTIONIST']
+  },
+  {
+    text: 'Finanças',
+    icon: <Payment />,
+    path: '/financas',
+    roles: ['ADMIN', 'MANAGER', 'FINANCIAL']
+  },
+  {
+    text: 'Demonstrações',
+    icon: <Engineering />,
+    path: '/demo-menu',
+    children: [
+      { text: 'Demo Planos', icon: <LocalOffer />, path: '/planos-demo' },
+      { text: 'Demo Assinaturas', icon: <CardMembership />, path: '/assinaturas-demo' },
+      { text: 'Demo Finanças', icon: <Payment />, path: '/financas-demo' }
     ]
   },
 ];
