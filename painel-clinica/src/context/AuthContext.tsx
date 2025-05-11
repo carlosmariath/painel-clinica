@@ -5,6 +5,8 @@ interface User {
   id: string;
   name: string;
   email: string;
+  role: string;
+  branchId?: string;
 }
 
 interface AuthContextType {

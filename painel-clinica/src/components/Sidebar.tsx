@@ -20,13 +20,16 @@ import {
   People,
   Person,
   Schedule,
-  MedicalServices,
   Menu,
   HelpOutline,
   Category,
   QuestionAnswer,
   ExpandLess,
-  ExpandMore
+  ExpandMore,
+  Business,
+  Settings,
+  Lock,
+  Engineering
 } from "@mui/icons-material";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -37,15 +40,37 @@ interface MenuItem {
   icon: ReactNode;
   path: string;
   children?: MenuItem[];
+  roles?: string[]; // Opcionalmente restringir por perfis de usuário
 }
 
 // Array com os itens do menu
 const menuItems: MenuItem[] = [
   { text: "Dashboard", icon: <Dashboard />, path: "/" },
-  { text: "Agendamentos", icon: <EventAvailable />, path: "/appointments" },
-  { text: "Terapeutas", icon: <People />, path: "/therapists" },
+  { 
+    text: "Agendamentos", 
+    icon: <EventAvailable />, 
+    path: "/appointments-menu",
+    children: [
+      { text: "Lista de Agendamentos", icon: <EventAvailable />, path: "/appointments" },
+      { text: "Calendário de Agendamentos", icon: <Schedule />, path: "/appointment-calendar" },
+      { text: "Calendário Kanban", icon: <Schedule />, path: "/calendar" }
+    ]
+  },
   { text: "Clientes", icon: <Person />, path: "/clients" },
   { text: "Agenda do Terapeuta", icon: <Schedule />, path: "/therapist-schedule" },
+  { 
+    text: "Configurações", 
+    icon: <Settings />, 
+    path: "/settings-menu",
+    children: [
+      { text: "Filiais", icon: <Business />, path: "/branches", roles: ["ADMIN"] },
+      { text: "Terapeutas", icon: <People />, path: "/therapists" },
+      { text: "Serviços", icon: <Category />, path: "/services" },
+      { text: "Usuários", icon: <Person />, path: "/users", roles: ["ADMIN"] },
+      { text: "Perfis de Acesso", icon: <Lock />, path: "/roles", roles: ["ADMIN"] },
+      { text: "Configurações do Sistema", icon: <Engineering />, path: "/system-settings", roles: ["ADMIN"] }
+    ]
+  },
   { 
     text: "Base de Conhecimento", 
     icon: <HelpOutline />, 
@@ -60,40 +85,27 @@ const menuItems: MenuItem[] = [
 
 const Sidebar = () => {
   const { user } = useAuth();
-  const [darkMode, setDarkMode] = useState(false);
-  const [openMenu, setOpenMenu] = useState({
-    users: false
-  });
   const location = useLocation();
   const theme = useTheme();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({
-    '/knowledge': false // Definir como aberto se estiver em uma rota de conhecimento
+    '/knowledge': false, // Definir como aberto se estiver em uma rota de conhecimento
+    '/appointments-menu': false, // Inicialmente fechado
+    '/settings-menu': false // Inicialmente fechado
   });
 
   const handleDrawerToggle = () => {
     // Função para toggle do drawer em dispositivos móveis
   };
 
-  const handleMenuToggle = (menu: keyof typeof openMenu) => {
-    setOpenMenu({
-      ...openMenu,
-      [menu]: !openMenu[menu]
-    });
-  };
-
-  const isActive = (path: string): boolean => {
-    return location.pathname.startsWith(path);
-  };
-
-  // Verificar se o caminho ativo pertence a um item de menu ou subitem
-  const isPathActive = (path: string): boolean => {
-    return location.pathname === path || location.pathname.startsWith(path);
-  };
-
   // Verificar se um item de menu está ativo com base em seu caminho ou caminhos de subitens
   const isMenuItemActive = (item: MenuItem): boolean => {
+    // Para o Dashboard, verificar se está na rota raiz ou /dashboard
+    if (item.path === "/" && (location.pathname === "/" || location.pathname === "/dashboard")) {
+      return true;
+    }
+    
     if (location.pathname === item.path) return true;
     
     if (item.children) {
@@ -118,12 +130,34 @@ const Sidebar = () => {
       .find(item => item.path === '/knowledge')?.children
       ?.some(child => location.pathname === child.path) || false;
     
+    // Verificar se estamos em alguma rota de agendamentos
+    const isAppointmentsRoute = menuItems
+      .find(item => item.path === '/appointments-menu')?.children
+      ?.some(child => location.pathname === child.path) || false;
+    
+    // Verificar se estamos em alguma rota de configurações
+    const isSettingsRoute = menuItems
+      .find(item => item.path === '/settings-menu')?.children
+      ?.some(child => location.pathname === child.path) || false;
+    
+    // Verificar se estamos na rota do calendário específico
+    const isCalendarRoute = location.pathname === '/calendar';
+    
+    const newOpenSubmenus = { ...openSubmenus };
+    
     if (isKnowledgeRoute) {
-      setOpenSubmenus(prev => ({
-        ...prev,
-        '/knowledge': true
-      }));
+      newOpenSubmenus['/knowledge'] = true;
     }
+    
+    if (isAppointmentsRoute || isCalendarRoute) {
+      newOpenSubmenus['/appointments-menu'] = true;
+    }
+    
+    if (isSettingsRoute) {
+      newOpenSubmenus['/settings-menu'] = true;
+    }
+    
+    setOpenSubmenus(newOpenSubmenus);
   });
 
   // Renderizar um item de menu (com possíveis subitens)
@@ -131,6 +165,11 @@ const Sidebar = () => {
     const isActive = isMenuItemActive(item);
     const hasChildren = item.children && item.children.length > 0;
     const isSubmenuOpen = openSubmenus[item.path] || false;
+    
+    // Verificar restrições de acesso baseadas em perfil
+    if (item.roles && (!user?.role || !item.roles.includes(user.role))) {
+      return null; // Não mostrar item se usuário não tem permissão
+    }
 
     return (
       <ListItem 
@@ -177,6 +216,9 @@ const Sidebar = () => {
                     key={child.text}
                     component={Link}
                     to={child.path}
+                    onClick={() => {
+                      console.log('Navegando para:', child.path);
+                    }}
                     sx={{
                       pl: 4,
                       borderRadius: 1,

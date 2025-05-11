@@ -25,6 +25,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import theme from "../theme";
+import BranchSwitcher from "./BranchSwitcher";
 
 const Header = () => {
   const { user, logout } = useAuth();
@@ -113,10 +114,20 @@ const Header = () => {
           <Typography variant="h5" fontWeight={600}>
             {getPageTitle()}
           </Typography>
+          
+          {/* Seletor de filiais */}
+          <Box ml={3} display={{ xs: 'none', md: 'block' }}>
+            <BranchSwitcher />
+          </Box>
         </Box>
 
         {/* Ícones de ação */}
         <Box display="flex" alignItems="center" gap={0.5}>
+          {/* Seletor de filiais em modo compacto para mobile */}
+          <Box display={{ xs: 'block', md: 'none' }} mr={1}>
+            <BranchSwitcher variant="compact" />
+          </Box>
+          
           {/* Pesquisa (placeholder para implementação futura) */}
           <Tooltip title="Pesquisar">
             <IconButton size="large" color="default">

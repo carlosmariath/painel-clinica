@@ -1,50 +1,89 @@
-import axios from "axios";
+import api from "../api";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const ENDPOINT = "/therapists";
 
-// 🔹 Função para obter o token armazenado no Local Storage
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("access_token");
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
-};
-
-// 🔹 Buscar todos os terapeutas
-export const getTherapists = async () => {
-  const response = await axios.get(`${API_URL}/therapists`, getAuthHeaders());
+// 🔹 Buscar todos os terapeutas ou por serviço
+export const getTherapists = async (serviceId?: string, branchId?: string) => {
+  const params: Record<string, string> = {};
+  if (serviceId) params.serviceId = serviceId;
+  if (branchId) params.branchId = branchId;
+  
+  const response = await api.get(ENDPOINT, { params });
   return response.data;
 };
 
 // 🔹 Criar um novo terapeuta (Apenas ADMIN pode criar)
-export const createTherapist = async (therapistData: { name: string; email: string; phone: string; }) => {
-  return axios.post(`${API_URL}/therapists`, therapistData, getAuthHeaders());
+export const createTherapist = async (therapistData: { 
+  name: string; 
+  email: string; 
+  phone: string;
+  specialty?: string;
+  branchIds?: string[];
+}) => {
+  return api.post(ENDPOINT, therapistData);
 };
 
 // 🔹 Atualizar dados do terapeuta
-export const updateTherapist = async (id: any, therapistData: { name: string; email: string; phone: string; }) => {
-  return axios.put(`${API_URL}/therapists/${id}`, therapistData, getAuthHeaders());
+export const updateTherapist = async (id: string, therapistData: { 
+  name: string; 
+  email: string; 
+  phone: string;
+  specialty?: string;
+}) => {
+  return api.patch(`${ENDPOINT}/${id}`, therapistData);
 };
 
 // 🔹 Deletar um terapeuta (Apenas ADMIN pode deletar)
 export const deleteTherapist = async (id: string) => {
-  return axios.delete(`${API_URL}/therapists/${id}`, getAuthHeaders());
+  return api.delete(`${ENDPOINT}/${id}`);
+};
+
+// 🔹 Associar serviço ao terapeuta
+export const addServiceToTherapist = async (therapistId: string, serviceId: string) => {
+  return api.post(`${ENDPOINT}/${therapistId}/services/${serviceId}`);
+};
+
+// 🔹 Desassociar serviço do terapeuta
+export const removeServiceFromTherapist = async (therapistId: string, serviceId: string) => {
+  return api.delete(`${ENDPOINT}/${therapistId}/services/${serviceId}`);
 };
 
 // 🔹 Buscar a disponibilidade do terapeuta autenticado (sem precisar passar therapistId)
-export const getTherapistSchedule = async () => {
-  const response = await axios.get(`${API_URL}/therapists/me/schedule`, getAuthHeaders());
+export const getTherapistSchedule = async (branchId?: string) => {
+  const params = branchId ? { branchId } : {};
+  const response = await api.get(`${ENDPOINT}/me/schedule`, { params });
   return response.data;
 };
 
 // 🔹 Atualizar a disponibilidade do terapeuta autenticado
-export const updateTherapistSchedule = async (schedule: { id: number; dayOfWeek: number; startTime: string; endTime: string; }[]) => {
-  return axios.post(`${API_URL}/therapists/me/schedule`, schedule, getAuthHeaders());
+export const updateTherapistSchedule = async (
+  schedule: { 
+    dayOfWeek: number; 
+    startTime: string; 
+    endTime: string;
+    branchId: string; 
+  }
+) => {
+  return api.post(`${ENDPOINT}/me/schedule`, schedule);
 };
 
 // 🔹 Remover um horário de disponibilidade específico
-export const deleteTherapistSchedule = async (scheduleId: any) => {
-  return axios.delete(`${API_URL}/therapists/me/schedule/${scheduleId}`, getAuthHeaders());
+export const deleteTherapistSchedule = async (scheduleId: string) => {
+  return api.delete(`${ENDPOINT}/me/schedule/${scheduleId}`);
+};
+
+// 🔹 Adicionar filial ao terapeuta
+export const addBranchToTherapist = async (therapistId: string, branchId: string) => {
+  return api.post(`${ENDPOINT}/${therapistId}/branches/${branchId}`);
+};
+
+// 🔹 Remover filial do terapeuta
+export const removeBranchFromTherapist = async (therapistId: string, branchId: string) => {
+  return api.delete(`${ENDPOINT}/${therapistId}/branches/${branchId}`);
+};
+
+// 🔹 Buscar filiais do terapeuta
+export const getTherapistBranches = async (therapistId: string) => {
+  const response = await api.get(`${ENDPOINT}/${therapistId}/branches`);
+  return response.data;
 };
