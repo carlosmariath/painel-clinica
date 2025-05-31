@@ -1,15 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useMemo, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import {
   Box,
   Typography,
   Button,
   Card,
   CardContent,
-  Stack,
-  TextField,
-  IconButton,
-  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -19,28 +15,37 @@ import {
   Grid,
   Tabs,
   Tab,
-  Avatar
+  Toolbar,
+  IconButton,
+  Paper,
+  CircularProgress,
+  Container,
+  Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
+  Skeleton,
+  Tooltip,
+  Fade
 } from "@mui/material";
 import AppointmentForm from "../components/AppointmentForm";
+import AppointmentWizardV2 from "../components/AppointmentWizardV2";
 import { getAllAppointments, deleteAppointment, createAppointment } from "../services/appointmentService";
 import { getClients } from "../services/clientsService";
 import { getTherapists } from "../services/threapistService";
 import { getBranches } from "../services/branchService";
 import { useNotification } from "../components/Notification";
 import { getServices, Service } from "../services/serviceService";
-import { getAvailableDates } from "../services/availabilityService";
-import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import AppointmentList from './AppointmentList';
-import TimeGridCalendarTab from './TimeGridCalendarTab';
+import KanbanCalendar from '../components/KanbanCalendar';
 import { BranchContext } from "../context/BranchContext";
-
-// Função formatadora de data para o formato brasileiro
-const formatarData = (dateString: string): string => {
-  if (!dateString) return "";
-  const data = new Date(dateString);
-  return data.toLocaleDateString('pt-BR');
-};
+import { subscriptionService, Subscription } from '../services/subscriptionService';
+import { format, startOfWeek, addWeeks, addDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Add as AddIcon, ChevronLeft, ChevronRight, CalendarMonth, FilterList, Refresh, CheckCircle, Cancel, Schedule, WarningAmber } from '@mui/icons-material';
+import { useTheme } from '@mui/material/styles';
 
 // Definindo uma interface para os tipos de visualização
 interface TabPanelProps {
@@ -70,6 +75,21 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+// Interface para o objeto de agendamento
+interface AppointmentData {
+  clientId: string;
+  serviceId: string;
+  therapistId: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  branchId?: string;
+  subscriptionId?: string;
+  couponCode?: string;
+  notes?: string;
+  autoSchedule?: boolean;
+}
+
 const Appointments = () => {
   const branchContext = useContext(BranchContext);
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -78,25 +98,23 @@ const Appointments = () => {
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<any>(null);
-  const [tabValue, setTabValue] = useState(0);
-  const [showFresha, setShowFresha] = useState(false);
+  const [tabValue, setTabValue] = useState(1); // Definindo o calendário como padrão (índice 1)
   
-  // Estados para o fluxo de agendamento no estilo Fresha
-  const [freshaStep, setFreshaStep] = useState(1);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [selectedTherapist, setSelectedTherapist] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
-  const [selectedClient, setSelectedClient] = useState<string | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(
-    branchContext?.currentBranch?.id || null
-  );
+  // Estados para navegação do calendário
+  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   
-  // Lista de serviços e disponibilidade
-  const [servicesList, setServicesList] = useState<Service[]>([]);
-  const [availableDates, setAvailableDates] = useState<{date: string; available: boolean; slots: string[]}[]>([]);
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  // Estados para o novo fluxo de agendamento
+  const [openWizard, setOpenWizard] = useState(false);
+  const [clientSubscriptions, setClientSubscriptions] = useState<Subscription[]>([]);
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
+  const [preselectedDate, setPreselectedDate] = useState<string | null>(null);
+  const [preselectedTime, setPreselectedTime] = useState<string | null>(null);
 
+  // Lista de serviços, clientes e terapeutas
+  const [servicesList, setServicesList] = useState<Service[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [therapists, setTherapists] = useState<any[]>([]);
+  
   // Filtros
   const [filters, setFilters] = useState({
     clientId: "",
@@ -104,100 +122,26 @@ const Appointments = () => {
     branchId: branchContext?.currentBranch?.id || "",
     startDate: "",
     endDate: "",
-    searchTerm: ""
+    searchTerm: "",
+    status: 'all',
+    date: '',
+    therapist: 'all'
   });
 
-  const [clients, setClients] = useState<any[]>([]);
-  const [therapists, setTherapists] = useState<any[]>([]);
-  const [branches, setBranches] = useState<any[]>([]);
   const [filteredAppointments, setFilteredAppointments] = useState<any[]>([]);
   const { showNotification } = useNotification();
-  const [saving, setSaving] = useState(false);
-
-  const [buscaCliente, setBuscaCliente] = useState("");
-  const [buscaTerapeuta, setBuscaTerapeuta] = useState("");
-
-  // Novo: dias iniciais a exibir slots carregados
-  const INITIAL_DAYS = 5;
-  const [initialDaysRange, setInitialDaysRange] = useState<{start: Date, end: Date} | null>(null);
-  const [loadingDaySlots, setLoadingDaySlots] = useState<string | null>(null); // date string
-
-  // Cálculos para o carrossel de dias (fora do renderFreshaStep e do switch)
-  const today = new Date();
-  const selected = selectedDate || today;
-  const startOfWeek = useMemo(() => {
-    const d = new Date(selected);
-    d.setDate(d.getDate() - d.getDay()); // domingo
-    return d;
-  }, [selected]);
-  const diasVisiveis = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(startOfWeek);
-    d.setDate(d.getDate() + i);
-    const dateStr = d.toISOString().split('T')[0];
-    const available = availableDates.find(ad => ad.date === dateStr)?.available;
-    return {
-      date: dateStr,
-      weekday: d.toLocaleDateString('pt-BR', { weekday: 'short' }),
-      day: d.getDate(),
-      available,
-      fullDate: new Date(d),
-    };
-  });
-  // Navegação de semana
-  const handlePrevWeek = () => {
-    const prev = new Date(startOfWeek);
-    prev.setDate(prev.getDate() - 7);
-    setSelectedDate(prev);
-    setSelectedTimeSlot(null);
-  };
-  const handleNextWeek = () => {
-    const next = new Date(startOfWeek);
-    next.setDate(next.getDate() + 7);
-    setSelectedDate(next);
-    setSelectedTimeSlot(null);
-  };
-
-  const [calendarAppointments, setCalendarAppointments] = useState<any[]>([]);
-  const [calendarTherapist, setCalendarTherapist] = useState<string>("");
-  const [calendarClient, setCalendarClient] = useState<string>("");
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [openEventModal, setOpenEventModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Função utilitária para mapear agendamentos para eventos do FullCalendar
-  const mapAppointmentsToEvents = (appointments: any[]) =>
-    appointments.map(app => ({
-      id: app.id,
-      title: `${app.client?.name || ""}: ${app.service?.name || ""}`,
-      start: `${app.date}T${app.startTime}`,
-      end: `${app.date}T${app.endTime}`,
-      backgroundColor: app.status === 'CANCELED' ? '#bdbdbd' : '#e57373',
-      extendedProps: {
-        client: app.client,
-        therapist: app.therapist,
-        service: app.service,
-        status: app.status,
-        notes: app.notes,
-        branch: app.branch,
-      },
-    }));
-
-  // Função para buscar agendamentos do calendário
-  const fetchCalendarAppointments = async (start: string, end: string) => {
-    let url = `${process.env.REACT_APP_API_URL || ""}/appointments/calendar?start=${start}&end=${end}`;
-    if (calendarTherapist) url += `&therapistId=${calendarTherapist}`;
-    if (calendarClient) url += `&clientId=${calendarClient}`;
-    if (filters.branchId) url += `&branchId=${filters.branchId}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    setCalendarAppointments(data);
-  };
+  const theme = useTheme();
 
   useEffect(() => {
     fetchData();
     // buscar serviços
     getServices().then(setServicesList).catch(console.error);
     // buscar filiais
-    getBranches().then(setBranches).catch(console.error);
+    getBranches().then(() => {}).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -205,25 +149,25 @@ const Appointments = () => {
   }, [filters, appointments]);
 
   useEffect(() => {
-    if ((freshaStep === 3 || freshaStep === 4) && selectedService) {
-      // Calcular os próximos 5 dias a partir de hoje
-      const today = new Date();
-      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const end = new Date(start);
-      end.setDate(end.getDate() + INITIAL_DAYS - 1);
-      setInitialDaysRange({start, end});
-
-      // Buscar disponibilidade para os próximos dias
-      getAvailableDates(
-        [selectedService.id], 
-        selectedTherapist || undefined, 
-        `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`,
-        selectedBranch || undefined
-      )
-        .then(setAvailableDates)
-        .catch(console.error);
-    }
-  }, [freshaStep, selectedService, selectedTherapist, selectedBranch]);
+    // Carregar assinaturas ativas quando o componente for montado
+    const fetchActiveSubscriptions = async () => {
+      try {
+        setLoadingSubscriptions(true);
+        const activeSubscriptions = await subscriptionService.getSubscriptions(
+          undefined, 
+          'ACTIVE',
+          branchContext?.currentBranch?.id
+        );
+        setClientSubscriptions(activeSubscriptions);
+      } catch (error) {
+        console.error('Erro ao carregar assinaturas ativas:', error);
+      } finally {
+        setLoadingSubscriptions(false);
+      }
+    };
+    
+    fetchActiveSubscriptions();
+  }, [branchContext?.currentBranch?.id]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -254,6 +198,19 @@ const Appointments = () => {
     setSelectedAppointment(null);
   };
 
+  const handleOpenWizard = (date?: string, time?: string) => {
+    console.log('Appointments - handleOpenWizard chamado com:', { date, time });
+    if (date) setPreselectedDate(date);
+    if (time) setPreselectedTime(time);
+    setOpenWizard(true);
+  };
+
+  const handleCloseWizard = () => {
+    setOpenWizard(false);
+    setPreselectedDate(null);
+    setPreselectedTime(null);
+  };
+
   const handleDelete = (appointment: any) => {
     setAppointmentToDelete(appointment);
     setOpenConfirm(true);
@@ -261,10 +218,10 @@ const Appointments = () => {
 
   const confirmDelete = async () => {
     if (!appointmentToDelete) return;
-    
+
     try {
       await deleteAppointment(appointmentToDelete.id);
-      setAppointments(appointments.filter(a => a.id !== appointmentToDelete.id));
+      setAppointments(appointments.filter(app => app.id !== appointmentToDelete.id));
       showNotification("Agendamento excluído com sucesso", "success");
     } catch (error) {
       console.error("Erro ao excluir agendamento:", error);
@@ -291,41 +248,35 @@ const Appointments = () => {
     let filtered = [...appointments];
 
     if (filters.clientId) {
-      filtered = filtered.filter(a => a.clientId === filters.clientId);
+      filtered = filtered.filter(app => app.clientId === filters.clientId);
     }
 
     if (filters.therapistId) {
-      filtered = filtered.filter(a => a.therapistId === filters.therapistId);
+      filtered = filtered.filter(app => app.therapistId === filters.therapistId);
     }
 
     if (filters.branchId) {
-      filtered = filtered.filter(a => a.branchId === filters.branchId);
+      filtered = filtered.filter(app => app.branchId === filters.branchId);
     }
 
     if (filters.startDate) {
-      const startDate = new Date(filters.startDate);
-      filtered = filtered.filter(a => new Date(a.date) >= startDate);
+      filtered = filtered.filter(app => new Date(app.date) >= new Date(filters.startDate));
     }
 
     if (filters.endDate) {
-      const endDate = new Date(filters.endDate);
-      endDate.setHours(23, 59, 59, 999); // Final do dia
-      filtered = filtered.filter(a => new Date(a.date) <= endDate);
+      filtered = filtered.filter(app => new Date(app.date) <= new Date(filters.endDate));
     }
 
     if (filters.searchTerm) {
-      const searchTerm = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(a => {
-        const client = clients.find(c => c.id === a.clientId);
-        const therapist = therapists.find(t => t.id === a.therapistId);
-        const clientName = client ? client.name.toLowerCase() : "";
-        const therapistName = therapist ? therapist.name.toLowerCase() : "";
-        const notes = a.notes ? a.notes.toLowerCase() : "";
-        
+      const searchTermLower = filters.searchTerm.toLowerCase();
+      filtered = filtered.filter(app => {
+        const clientName = app.client?.name.toLowerCase() || '';
+        const therapistName = app.therapist?.name.toLowerCase() || '';
+        const serviceName = app.service?.name.toLowerCase() || '';
         return (
-          clientName.includes(searchTerm) ||
-          therapistName.includes(searchTerm) ||
-          notes.includes(searchTerm)
+          clientName.includes(searchTermLower) ||
+          therapistName.includes(searchTermLower) ||
+          serviceName.includes(searchTermLower)
         );
       });
     }
@@ -340,412 +291,425 @@ const Appointments = () => {
       branchId: branchContext?.currentBranch?.id || "",
       startDate: "",
       endDate: "",
-      searchTerm: ""
+      searchTerm: "",
+      status: 'all',
+      date: '',
+      therapist: 'all'
     });
-  };
-
-  const getClientName = (clientId: string) => {
-    return clients.find(client => client.id === clientId)?.name || "Cliente não encontrado";
-  };
-
-  const getTherapistName = (therapistId: string) => {
-    return therapists.find(therapist => therapist.id === therapistId)?.name || "Terapeuta não encontrado";
   };
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
-  const handleStartFreshaFlow = () => {
-    setFreshaStep(1);
-    setSelectedService(null);
-    setSelectedTherapist(null);
-    setSelectedDate(null);
-    setSelectedTimeSlot(null);
-    setSelectedClient(null);
-    // Inicializa com a filial atual do contexto, se disponível
-    setSelectedBranch(branchContext?.currentBranch?.id || null);
-    setShowFresha(true);
-  };
-
-  const handleCloseFreshaFlow = () => {
-    setShowFresha(false);
-    setFreshaStep(1);
-    setSelectedService(null);
-    setSelectedTherapist(null);
-    setSelectedDate(null);
-    setSelectedTimeSlot(null);
-    setSelectedClient(null);
-    setSelectedBranch(null);
-  };
-
-  const handleNextStep = () => {
-    if (freshaStep < 5) {
-      setFreshaStep(freshaStep + 1);
-    }
-  };
-
-  const handlePreviousStep = () => {
-    if (freshaStep > 1) {
-      setFreshaStep(freshaStep - 1);
-    }
-  };
-
-  const handleSaveAppointment = async () => {
-    if (!selectedClient || !selectedTherapist || !selectedDate || !selectedTimeSlot) {
-      showNotification("Preencha todos os campos obrigatórios", "error");
-      return;
-    }
-
-    setSaving(true);
+  const handleSaveAppointment = async (appointmentData: AppointmentData): Promise<void> => {
     try {
-      // Calcular horário de término baseado na duração do serviço
-      const startHour = parseInt(selectedTimeSlot.split(':')[0]);
-      const startMinute = parseInt(selectedTimeSlot.split(':')[1]);
+      console.log('Appointments - Dados recebidos do wizard:', appointmentData);
       
-      // Duração padrão de 1 hora se não houver serviço selecionado
-      const durationMinutes = selectedService?.averageDuration || 60;
-      
-      const endDate = new Date();
-      endDate.setHours(startHour);
-      endDate.setMinutes(startMinute + durationMinutes);
-      
-      const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
-      
-      const appointmentData = {
-        clientId: selectedClient,
-        therapistId: selectedTherapist,
-        date: selectedDate.toISOString().split('T')[0],
-        startTime: selectedTimeSlot,
-        endTime: endTime,
-        branchId: selectedBranch || undefined
+      // Garantir que endTime seja calculado se não estiver presente
+      const finalData = {
+        ...appointmentData,
+        branchId: appointmentData.branchId || branchContext?.currentBranch?.id
       };
       
-      await createAppointment(appointmentData);
-      showNotification("Agendamento criado com sucesso!", "success");
-      handleCloseFreshaFlow();
-      fetchData(); // Recarregar os agendamentos
+      // Se não tem endTime mas tem startTime, calcular baseado na duração do serviço
+      if (finalData.startTime && !finalData.endTime && finalData.serviceId) {
+        const selectedService = servicesList.find(s => s.id === finalData.serviceId);
+        if (selectedService) {
+          const [hours, minutes] = finalData.startTime.split(':').map(Number);
+          const startMinutes = hours * 60 + minutes;
+          const endMinutes = startMinutes + (selectedService.averageDuration || 60);
+          const endHours = Math.floor(endMinutes / 60);
+          const endMins = endMinutes % 60;
+          finalData.endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+        }
+      }
+      
+      console.log('Appointments - Dados finais a serem enviados:', finalData);
+      
+      await createAppointment(finalData);
+      
+      showNotification("Agendamento criado com sucesso", "success");
+      fetchData();  // Recarrega os agendamentos
     } catch (error) {
       console.error("Erro ao criar agendamento:", error);
       showNotification("Erro ao criar agendamento", "error");
-    } finally {
-      setSaving(false);
+      throw error;
     }
   };
 
-  // Componentes para cada etapa do fluxo de agendamento estilo Fresha
-  const renderFreshaStep = () => {
-    switch (freshaStep) {
-      case 1:
-        // Seleção de Cliente
-        return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>Selecione o cliente</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Passo 1 de 5</Typography>
-            <TextField
-              label="Buscar cliente"
-              value={buscaCliente}
-              onChange={e => setBuscaCliente(e.target.value)}
-              fullWidth
-              sx={{ mb: 2 }}
-            />
-            <Box sx={{ maxHeight: '400px', overflow: 'auto' }}>
-              {clients
-                .filter(client =>
-                  client.name.toLowerCase().includes(buscaCliente.toLowerCase()) ||
-                  client.email.toLowerCase().includes(buscaCliente.toLowerCase())
-                )
-                .map(client => (
-                  <Card key={client.id} sx={{ mb: 2, cursor: 'pointer', border: selectedClient === client.id ? '2px solid #1976d2' : '1px solid #eee', bgcolor: selectedClient === client.id ? 'primary.light' : 'background.paper', transition: 'border 0.2s' }} onClick={() => setSelectedClient(selectedClient === client.id ? null : client.id)}>
-                    <CardContent sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Avatar sx={{ mr: 2 }}>{client.name.charAt(0)}</Avatar>
-                      <Box>
-                        <Typography variant="subtitle1">{client.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">{client.email}</Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                ))}
+  // Manipulador de clique em uma célula do calendário Kanban
+  const handleCalendarSlotClick = (date: string, startTime: string, endTime: string) => {
+    console.log('Appointments - handleCalendarSlotClick chamado com:', { date, startTime, endTime });
+    // Verificar se todas as propriedades necessárias estão definidas
+    if (!date || !startTime) {
+      console.error('Dados de slot incompletos:', { date, startTime, endTime });
+      showNotification('Não foi possível iniciar um agendamento para este horário.', 'error');
+      return;
+    }
+    
+    // Formatar a data se necessário (garantir que está no formato YYYY-MM-DD)
+    const formattedDate = date.includes('T') ? date.split('T')[0] : date;
+    
+    // Iniciar o wizard com os valores pré-selecionados
+    handleOpenWizard(formattedDate, startTime);
+  };
+
+  // Funções para navegação do calendário
+  const prevWeek = () => setWeekStart(prev => addWeeks(prev, -1));
+  const nextWeek = () => setWeekStart(prev => addWeeks(prev, 1));
+  const goToday = () => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+
+  // Formatar o intervalo da semana
+  const formatWeekRange = (start: Date) => {
+    const end = addDays(start, 6);
+    return `${format(start, 'dd', { locale: ptBR })} - ${format(end, 'dd')} de ${format(start, 'MMMM yyyy', { locale: ptBR })}`;
+  };
+
+  const fetchAppointments = async (showRefreshIndicator = false) => {
+    try {
+      if (showRefreshIndicator) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      const data = await getAllAppointments(filters.branchId);
+      setAppointments(data);
+      if (showRefreshIndicator) {
+        showNotification("Dados atualizados com sucesso", "success");
+      }
+    } catch (error) {
+      console.error("Erro ao buscar agendamentos:", error);
+      showNotification("Erro ao carregar agendamentos", "error");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    fetchAppointments(true);
+  };
+
+  // Skeleton Loader Component
+  const AppointmentSkeleton = () => (
+    <Card sx={{ mb: 2 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ flex: 1 }}>
+            <Skeleton variant="text" width="60%" height={30} />
+            <Skeleton variant="text" width="40%" height={20} sx={{ mt: 1 }} />
+            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+              <Skeleton variant="rounded" width={80} height={24} />
+              <Skeleton variant="rounded" width={100} height={24} />
             </Box>
           </Box>
-        );
-      case 2:
-        // Seleção de Serviço
-        return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>Selecione o serviço</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Passo 2 de 6</Typography>
-            <Grid container spacing={2}>
-              {servicesList.map(service => (
-                <Grid item xs={12} sm={6} md={4} key={service.id}>
-                  <Card sx={{ cursor: 'pointer', border: selectedService?.id===service.id?'2px solid #1976d2':'1px solid #eee', bgcolor: selectedService?.id===service.id?'primary.light':'background.paper', transition: 'border 0.2s' }} onClick={() => setSelectedService(selectedService?.id===service.id ? null : service)}>
-                    <CardContent>
-                      <Typography variant="h6">{service.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">{service.description}</Typography>
-                      <Typography variant="h6" sx={{ mt: 1 }}>R$ {service.price.toFixed(2)}</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-        );
-      case 3:
-        // Seleção de Terapeuta
-        return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>Selecione o terapeuta</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Passo 3 de 5</Typography>
-            <TextField
-              label="Buscar terapeuta"
-              value={buscaTerapeuta}
-              onChange={e => setBuscaTerapeuta(e.target.value)}
-              fullWidth
-              sx={{ mb: 2 }}
-            />
-            <Grid container spacing={2}>
-              {therapists
-                .filter(t => t.therapistServices?.some((ts: any) => ts.service.id === selectedService?.id))
-                .filter(terap =>
-                  terap.name.toLowerCase().includes(buscaTerapeuta.toLowerCase()) ||
-                  (terap.specialty && terap.specialty.toLowerCase().includes(buscaTerapeuta.toLowerCase()))
-                )
-                .map(therapist => (
-                  <Grid item xs={12} sm={6} md={4} key={therapist.id}>
-                    <Card sx={{ cursor: 'pointer', border: selectedTherapist===therapist.id?'2px solid #1976d2':'1px solid #eee', bgcolor: selectedTherapist===therapist.id?'primary.light':'background.paper', transition: 'border 0.2s' }} onClick={() => setSelectedTherapist(selectedTherapist===therapist.id ? null : therapist.id)}>
-                      <CardContent>
-                        <Typography variant="h6">{therapist.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">{therapist.specialty}</Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-            </Grid>
-          </Box>
-        );
-      case 4:
-        // Seleção de Data e Horário (carrossel horizontal)
-        return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>Escolha uma data</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Passo 4 de 5</Typography>
-            <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ mb: 3 }}>
-              <IconButton onClick={handlePrevWeek}><ArrowBackIosNewIcon /></IconButton>
-              {diasVisiveis.map(dia => {
-                const isInitial = initialDaysRange && new Date(dia.date) >= initialDaysRange.start && new Date(dia.date) <= initialDaysRange.end;
-                return (
-                  <Button
-                    key={dia.date}
-                    variant={selectedDate?.toISOString().split('T')[0] === dia.date ? "contained" : "outlined"}
-                    onClick={() => { setSelectedDate(dia.fullDate); setSelectedTimeSlot(null); }}
-                    disabled={!dia.available && !!isInitial}
-                    sx={{ minWidth: 64, flexDirection: 'column', opacity: dia.available || !isInitial ? 1 : 0.4 }}
-                  >
-                    <Typography variant="caption">{dia.weekday.toUpperCase()}</Typography>
-                    <Typography variant="h6">{dia.day}</Typography>
-                    {!isInitial && <Typography variant="caption" color="primary">Ver horários</Typography>}
-                  </Button>
-                );
-              })}
-              <IconButton onClick={handleNextWeek}><ArrowForwardIosIcon /></IconButton>
-            </Stack>
-            {/* Grade de horários */}
-            {selectedDate && (
-              <Box sx={{ mt: 3 }}>
-                <Typography variant="subtitle1" gutterBottom>Horários disponíveis para {selectedDate.toLocaleDateString()}</Typography>
-                {loadingDaySlots === selectedDate.toISOString().split('T')[0] ? (
-                  <Typography color="text.secondary">Carregando horários...</Typography>
-                ) : (
-                  <Grid container spacing={2}>
-                    {availableSlots.length === 0 ? (
-                      <Grid item xs={12}><Typography color="text.secondary">Nenhum horário disponível para este dia.</Typography></Grid>
-                    ) : (
-                      availableSlots.map(slot => (
-                        <Grid item xs={6} sm={4} md={2} key={slot}>
-                          <Button
-                            variant={selectedTimeSlot === slot ? 'contained' : 'outlined'}
-                            fullWidth
-                            onClick={() => setSelectedTimeSlot(selectedTimeSlot === slot ? null : slot)}
-                          >{slot}</Button>
-                        </Grid>
-                      ))
-                    )}
-                  </Grid>
-                )}
-              </Box>
-            )}
-          </Box>
-        );
-      case 5:
-        // Revisão
-        return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>Resumo do Agendamento</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Passo 5 de 6</Typography>
-            <Card sx={{ mb:3 }}><CardContent>
-              <Typography><strong>Cliente:</strong> {clients.find(c=>c.id===selectedClient)?.name}</Typography>
-              <Typography><strong>Serviço:</strong> {selectedService?.name}</Typography>
-              <Typography><strong>Data:</strong> {selectedDate?.toLocaleDateString()}</Typography>
-              <Typography><strong>Horário:</strong> {selectedTimeSlot}</Typography>
-              <Typography><strong>Terapeuta:</strong> {selectedTherapist ? therapists.find(t=>t.id===selectedTherapist)?.name : 'Não selecionado'}</Typography>
-              <Typography><strong>Valor:</strong> R$ {selectedService?.price.toFixed(2)}</Typography>
-            </CardContent></Card>
-          </Box>
-        );
-      default:
-        return null;
-    }
+          <Skeleton variant="circular" width={40} height={40} />
+        </Box>
+      </CardContent>
+    </Card>
+  );
+
+  // Status statistics
+  const getStatusStats = () => {
+    const stats = {
+      scheduled: appointments.filter(a => a.status === 'SCHEDULED').length,
+      confirmed: appointments.filter(a => a.status === 'CONFIRMED').length,
+      canceled: appointments.filter(a => a.status === 'CANCELED').length,
+      total: appointments.length
+    };
+    return stats;
   };
 
-  // Botões de navegação para o fluxo Fresha
-  const renderFreshaNavigation = () => {
-    const canNext = [
-      selectedClient,
-      selectedService,
-      selectedTherapist,
-      selectedDate && selectedTimeSlot
-    ];
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 2, borderTop: '1px solid rgba(0, 0, 0, 0.12)' }}>
-        <Button 
-          variant="outlined"
-          onClick={freshaStep === 1 ? handleCloseFreshaFlow : handlePreviousStep}
-          disabled={saving}
-        >
-          {freshaStep === 1 ? 'Cancelar' : 'Voltar'}
-        </Button>
-        <Button 
-          variant="contained"
-          onClick={freshaStep === 5 ? handleSaveAppointment : handleNextStep}
-          disabled={
-            saving ||
-            (freshaStep < 5 && !canNext[freshaStep-1])
-          }
-        >
-          {saving && freshaStep === 5 ? <CircularProgress size={22} color="inherit" sx={{ mr: 1 }} /> : null}
-          {freshaStep === 5 ? 'Confirmar Agendamento' : 'Próximo'}
-        </Button>
-      </Box>
-    );
-  };
+  const stats = getStatusStats();
 
   return (
-    <Box sx={{ width: '100%' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" component="h1">
-          Agendamentos
-        </Typography>
-        <Box>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => handleOpenForm()}
-            sx={{ mr: 2 }}
-          >
-            Novo Agendamento
-          </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            onClick={handleStartFreshaFlow}
-          >
-            Agendamento Rápido
-          </Button>
+    <Container maxWidth="lg">
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <CalendarMonth fontSize="large" color="primary" />
+            <Typography variant="h4" fontWeight={700}>
+              Agendamentos
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Tooltip title="Atualizar">
+              <IconButton 
+                onClick={handleRefresh} 
+                disabled={refreshing}
+                sx={{ 
+                  transition: 'transform 0.3s',
+                  '&:hover': { transform: 'rotate(180deg)' }
+                }}
+              >
+                <Refresh sx={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+              </IconButton>
+            </Tooltip>
+            
+            <Button 
+              variant="contained" 
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenWizard()}
+              sx={{ borderRadius: 2 }}
+            >
+              Novo Agendamento
+            </Button>
+          </Box>
         </Box>
+
+        {/* Status Cards */}
+        <Fade in={!loading} timeout={600}>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ 
+                bgcolor: 'primary.50', 
+                border: '1px solid',
+                borderColor: 'primary.200',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-2px)' }
+              }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <Schedule sx={{ color: 'primary.main', mb: 1 }} />
+                  <Typography variant="h5" fontWeight={600}>{stats.total}</Typography>
+                  <Typography variant="body2" color="text.secondary">Total</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ 
+                bgcolor: 'info.50',
+                border: '1px solid',
+                borderColor: 'info.200',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-2px)' }
+              }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <Schedule sx={{ color: 'info.main', mb: 1 }} />
+                  <Typography variant="h5" fontWeight={600}>{stats.scheduled}</Typography>
+                  <Typography variant="body2" color="text.secondary">Agendados</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ 
+                bgcolor: 'success.50',
+                border: '1px solid', 
+                borderColor: 'success.200',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-2px)' }
+              }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <CheckCircle sx={{ color: 'success.main', mb: 1 }} />
+                  <Typography variant="h5" fontWeight={600}>{stats.confirmed}</Typography>
+                  <Typography variant="body2" color="text.secondary">Confirmados</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ 
+                bgcolor: 'error.50',
+                border: '1px solid',
+                borderColor: 'error.200',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-2px)' }
+              }}>
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                  <Cancel sx={{ color: 'error.main', mb: 1 }} />
+                  <Typography variant="h5" fontWeight={600}>{stats.canceled}</Typography>
+                  <Typography variant="body2" color="text.secondary">Cancelados</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Fade>
+
+        {/* Filters */}
+        <Paper sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <FilterList color="action" />
+            
+            <FormControl size="small" sx={{ minWidth: 150 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={filters.status}
+                label="Status"
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              >
+                <MenuItem value="all">Todos</MenuItem>
+                <MenuItem value="SCHEDULED">Agendados</MenuItem>
+                <MenuItem value="CONFIRMED">Confirmados</MenuItem>
+                <MenuItem value="CANCELED">Cancelados</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <TextField
+              size="small"
+              type="date"
+              label="Data"
+              value={filters.date}
+              onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 150 }}
+            />
+            
+                         <Button 
+              size="small" 
+              onClick={() => setFilters({ ...filters, status: 'all', date: '', therapist: 'all' })}
+              disabled={filters.status === 'all' && !filters.date}
+            >
+              Limpar Filtros
+            </Button>
+          </Box>
+        </Paper>
       </Box>
 
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={handleTabChange} aria-label="appointment tabs">
-          <Tab label="Lista" />
-          <Tab label="Calendário" />
-        </Tabs>
+      {/* Appointments List with Loading States */}
+      <Box>
+        {loading ? (
+          <Box>
+            {[1, 2, 3, 4].map((i) => (
+              <AppointmentSkeleton key={i} />
+            ))}
+          </Box>
+        ) : appointments.length === 0 ? (
+          <Paper sx={{ p: 4, textAlign: 'center', bgcolor: 'grey.50' }}>
+            <WarningAmber sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              Nenhum agendamento encontrado
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Clique no botão "Novo Agendamento" para criar o primeiro
+            </Typography>
+            <Button 
+              variant="contained" 
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenWizard()}
+            >
+              Criar Agendamento
+            </Button>
+          </Paper>
+        ) : (
+          <Fade in={!loading} timeout={800}>
+            <Box>
+              <AppointmentList 
+                appointments={appointments}
+                loading={loading}
+                therapists={therapists}
+                clients={clients}
+                onEdit={handleOpenForm}
+                onDelete={handleDelete}
+                filters={filters}
+                onFilterChange={handleFilterChange}
+                onSelectChange={handleSelectChange}
+                onBranchChange={handleBranchChange}
+                onResetFilters={resetFilters}
+              />
+            </Box>
+          </Fade>
+        )}
       </Box>
 
-      <TabPanel value={tabValue} index={0}>
-        <AppointmentList
-          appointments={filteredAppointments}
-          clients={clients}
-          therapists={therapists}
-          branches={branches}
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onSelectChange={handleSelectChange}
-          onBranchChange={handleBranchChange}
-          onResetFilters={resetFilters}
-          onEdit={handleOpenForm}
-          onDelete={handleDelete}
-          loading={loading}
-        />
-      </TabPanel>
-
-      <TabPanel value={tabValue} index={1}>
-        <TimeGridCalendarTab />
-      </TabPanel>
-
-      {/* Modal de formulário de agendamento */}
-      <AppointmentForm
+      {/* Appointment Form */}
+      <AppointmentForm 
         open={openForm}
         onClose={handleCloseForm}
         onSave={fetchData}
         appointment={selectedAppointment}
       />
 
-      {/* Modal de confirmação de exclusão */}
-      <Dialog open={openConfirm} onClose={() => setOpenConfirm(false)}>
-        <DialogTitle>Confirmar Exclusão</DialogTitle>
+      {/* Novo wizard de agendamento melhorado */}
+      <AppointmentWizardV2
+        open={openWizard}
+        onClose={handleCloseWizard}
+        onSave={handleSaveAppointment}
+        services={servicesList}
+        clients={clients}
+        therapists={therapists}
+        clientSubscriptions={clientSubscriptions}
+        isLoading={loadingSubscriptions}
+        preselectedDate={preselectedDate}
+        preselectedTime={preselectedTime}
+      />
+
+      {/* Diálogo de confirmação de exclusão */}
+      <Dialog
+        open={openConfirm}
+        onClose={() => setOpenConfirm(false)}
+      >
+        <DialogTitle>Excluir Agendamento</DialogTitle>
         <DialogContent>
           <DialogContentText>
             Tem certeza que deseja excluir este agendamento?
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenConfirm(false)} color="primary">
+          <Button onClick={() => setOpenConfirm(false)} color="inherit">
             Cancelar
           </Button>
-          <Button onClick={confirmDelete} color="error" variant="contained">
-            Excluir
+          <Button onClick={confirmDelete} color="error">
+            Confirmar Exclusão
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Modal de agendamento estilo Fresha */}
-      <Dialog
-        open={showFresha}
-        onClose={handleCloseFreshaFlow}
-        fullWidth
-        maxWidth="md"
-        PaperProps={{
-          sx: {
-            height: '80vh',
-            maxHeight: '900px',
-            display: 'flex',
-            flexDirection: 'column'
-          }
-        }}
-      >
-        <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="h5">
-              {freshaStep === 1 ? 'Novo Agendamento' : 
-               freshaStep === 2 ? 'Selecione uma data' :
-               freshaStep === 3 ? 'Selecione um horário' :
-               freshaStep === 4 ? 'Selecione um cliente' :
-               freshaStep === 5 ? 'Selecione os serviços' :
-               'Revisar e Confirmar'}
-            </Typography>
-            <Typography variant="body1">
-              Etapa {freshaStep} de 6
-            </Typography>
-          </Box>
-        </DialogTitle>
-        
-        <DialogContent dividers sx={{ flexGrow: 1, overflow: 'auto' }}>
-          {renderFreshaStep()}
+      {/* Modal de detalhes do evento do calendário */}
+      <Dialog open={openEventModal} onClose={() => setOpenEventModal(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Detalhes do Agendamento</DialogTitle>
+        <DialogContent>
+          {selectedEvent && (
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Typography variant="h6">
+                  {selectedEvent.extendedProps.client?.name}
+                </Typography>
+                <Typography variant="subtitle1" color="textSecondary">
+                  {selectedEvent.extendedProps.service?.name} | 
+                  {format(new Date(selectedEvent.extendedProps.date), 'dd/MM/yyyy', { locale: ptBR })} às {selectedEvent.extendedProps.startTime}
+                </Typography>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2">Terapeuta</Typography>
+                <Typography>{selectedEvent.extendedProps.therapist?.name}</Typography>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2">Status</Typography>
+                <Typography>{selectedEvent.extendedProps.status === 'CONFIRMED' ? 'Confirmado' : 
+                            selectedEvent.extendedProps.status === 'CANCELED' ? 'Cancelado' : 
+                            selectedEvent.extendedProps.status === 'PENDING' ? 'Pendente' : 
+                            selectedEvent.extendedProps.status}</Typography>
+              </Grid>
+              {selectedEvent.extendedProps.notes && (
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2">Observações</Typography>
+                  <Typography>{selectedEvent.extendedProps.notes}</Typography>
+                </Grid>
+              )}
+              <Grid item xs={12}>
+                <Typography variant="subtitle2">Filial</Typography>
+                <Typography>{selectedEvent.extendedProps.branch?.name}</Typography>
+              </Grid>
+            </Grid>
+          )}
         </DialogContent>
-        
-        {renderFreshaNavigation()}
+        <DialogActions>
+          <Button onClick={() => setOpenEventModal(false)}>Fechar</Button>
+          <Button 
+            onClick={() => {
+              handleOpenForm(selectedEvent.extendedProps.originalAppointment);
+              setOpenEventModal(false);
+            }} 
+            color="primary"
+          >
+            Editar
+          </Button>
+        </DialogActions>
       </Dialog>
-    </Box>
+    </Container>
   );
 };
 

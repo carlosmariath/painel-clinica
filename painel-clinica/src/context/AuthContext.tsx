@@ -7,6 +7,7 @@ interface User {
   email: string;
   role: string;
   branchId?: string;
+  allowedBranches?: string[];
 }
 
 interface AuthContextType {

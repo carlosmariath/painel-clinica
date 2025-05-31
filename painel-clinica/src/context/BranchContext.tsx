@@ -61,27 +61,39 @@ export const BranchProvider: React.FC<BranchProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const data = await getBranches(false); // apenas filiais ativas
-      setBranches(data);
+      // Busca todas as filiais ativas
+      const allAvailableBranches = await getBranches(false);
+      
+      // Filtra as filiais com base nas permissões do usuário
+      let userBranches = allAvailableBranches;
+      
+      // Se o usuário não é admin e tem allowedBranches no JWT, filtra as filiais permitidas
+      if (!isAdmin && user?.allowedBranches && user.allowedBranches.length > 0) {
+        userBranches = allAvailableBranches.filter(branch => 
+          user.allowedBranches?.includes(branch.id)
+        );
+      }
+      
+      setBranches(userBranches);
       
       // Se não temos filial selecionada e há filiais, selecionar a primeira
       const savedBranchId = localStorage.getItem('currentBranchId');
       
-      if (data.length > 0 && !allBranches) {
+      if (userBranches.length > 0 && !allBranches) {
         if (savedBranchId) {
           // Tentar carregar a filial salva
-          const savedBranch = data.find(b => b.id === savedBranchId);
+          const savedBranch = userBranches.find(b => b.id === savedBranchId);
           if (savedBranch) {
             setCurrentBranch(savedBranch);
           } else {
             // Se a filial salva não foi encontrada, usar a primeira
-            setCurrentBranch(data[0]);
-            localStorage.setItem('currentBranchId', data[0].id);
+            setCurrentBranch(userBranches[0]);
+            localStorage.setItem('currentBranchId', userBranches[0].id);
           }
         } else {
           // Se não há filial salva, usar a primeira
-          setCurrentBranch(data[0]);
-          localStorage.setItem('currentBranchId', data[0].id);
+          setCurrentBranch(userBranches[0]);
+          localStorage.setItem('currentBranchId', userBranches[0].id);
         }
       } else if (allBranches) {
         // Se estamos no modo 'todas as filiais', não selecionamos nenhuma filial específica
@@ -94,6 +106,13 @@ export const BranchProvider: React.FC<BranchProviderProps> = ({ children }) => {
       setLoading(false);
     }
   };
+
+  // Efeito para carregar filiais quando o usuário mudar
+  useEffect(() => {
+    if (user) {
+      loadBranches();
+    }
+  }, [user]);
 
   // Atualizar o estado de "todas as filiais" quando o usuário mudar
   useEffect(() => {

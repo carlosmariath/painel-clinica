@@ -19,6 +19,8 @@
     "@fullcalendar/interaction": "^6.1.17",
     "@fullcalendar/react": "^6.1.17",
     "@fullcalendar/timegrid": "^6.1.17",
+    "@headlessui/react": "^2.2.3",
+    "@heroicons/react": "^2.2.0",
     "@mui/icons-material": "^6.4.5",
     "@mui/lab": "^6.0.0-beta.28",
     "@mui/material": "^6.4.5",

@@ -4,9 +4,32 @@ const ENDPOINT = "/appointments";
 
 // 🔹 Buscar TODOS os agendamentos (Admin)
 export const getAllAppointments = async (branchId?: string) => {
-  const params = branchId ? { branchId } : {};
-  const response = await api.get(ENDPOINT, { params });
-  return response.data;
+  try {
+    // Usar a rota de calendário com intervalo amplo para cobrir todos os agendamentos
+    // Cria data inicial (1 ano atrás) e data final (1 ano à frente)
+    const startDate = new Date();
+    startDate.setFullYear(startDate.getFullYear() - 1);
+    
+    const endDate = new Date();
+    endDate.setFullYear(endDate.getFullYear() + 1);
+    
+    // Formatar as datas como YYYY-MM-DD
+    const start = startDate.toISOString().split('T')[0];
+    const end = endDate.toISOString().split('T')[0];
+    
+    // Montar os parâmetros
+    const params: { start: string; end: string; branchId?: string } = { start, end };
+    if (branchId) params.branchId = branchId;
+    
+    console.log(`Buscando agendamentos entre ${start} e ${end}${branchId ? ` para filial ${branchId}` : ''}`);
+    
+    // Usar a rota de calendário que está funcionando
+    const response = await api.get(`${ENDPOINT}/calendar`, { params });
+    return response.data;
+  } catch (error) {
+    console.error("Erro ao buscar agendamentos:", error);
+    throw error;
+  }
 };
 
 // 🔹 Buscar os agendamentos do CLIENTE logado
@@ -27,11 +50,14 @@ export const getTherapistAppointments = async (branchId?: string) => {
 export const createAppointment = async (appointmentData: { 
   therapistId: string; 
   date: string; 
-  startTime: string; 
-  endTime: string;
+  startTime?: string; 
+  endTime?: string;
   branchId?: string;
   clientId?: string;
   notes?: string;
+  subscriptionId?: string;
+  couponCode?: string;
+  autoSchedule?: boolean;
 }) => {
   return api.post(ENDPOINT, appointmentData);
 };

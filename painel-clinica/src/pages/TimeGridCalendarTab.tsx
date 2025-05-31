@@ -12,12 +12,14 @@ import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import TodayIcon from '@mui/icons-material/Today';
 
 interface TimeGridCalendarTabProps {
-  therapists: Therapist[];
-  clients: Client[];
+  therapists?: Therapist[];
+  clients?: Client[];
   selectedTherapist?: string;
   selectedClient?: string;
+  branchId?: string;
   onTherapistChange?: (therapistId: string) => void;
   onClientChange?: (clientId: string) => void;
+  onEventSelect?: (event: Appointment) => void;
 }
 
 // Interface para compatibilizar com o tipo retornado pelo serviço
@@ -37,12 +39,14 @@ interface AppointmentFromApi {
 }
 
 const TimeGridCalendarTab: React.FC<TimeGridCalendarTabProps> = ({ 
-  therapists, 
-  clients, 
+  therapists = [], 
+  clients = [], 
   selectedTherapist = "", 
   selectedClient = "",
+  branchId = "",
   onTherapistChange,
-  onClientChange
+  onClientChange,
+  onEventSelect
 }) => {
   const [loading, setLoading] = useState(false);
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -53,7 +57,7 @@ const TimeGridCalendarTab: React.FC<TimeGridCalendarTabProps> = ({
   // Carregar agendamentos
   useEffect(() => {
     fetchAppointments();
-  }, [weekStart, filterTherapist, filterClient]);
+  }, [weekStart, filterTherapist, filterClient, branchId]);
   
   const fetchAppointments = async () => {
     setLoading(true);
@@ -70,7 +74,8 @@ const TimeGridCalendarTab: React.FC<TimeGridCalendarTabProps> = ({
         startStr,
         endStr,
         filterTherapist || undefined,
-        filterClient || undefined
+        filterClient || undefined,
+        branchId || undefined
       );
       
       // Converter status da API para o formato esperado pelo componente
@@ -108,6 +113,13 @@ const TimeGridCalendarTab: React.FC<TimeGridCalendarTabProps> = ({
     setFilterClient(value);
     if (onClientChange) {
       onClientChange(value);
+    }
+  };
+  
+  // Manipulador de evento de seleção
+  const handleEventSelect = (appointment: Appointment) => {
+    if (onEventSelect) {
+      onEventSelect(appointment);
     }
   };
   
@@ -176,6 +188,7 @@ const TimeGridCalendarTab: React.FC<TimeGridCalendarTabProps> = ({
           <TimeGridCalendar 
             appointments={appointments} 
             weekStart={weekStart}
+            onAppointmentClick={handleEventSelect}
             onMoveAppointment={(id, newDate, newStartTime, newEndTime) => {
               console.log('Mover agendamento:', id, newDate, newStartTime, newEndTime);
               // Implementar a funcionalidade de mover agendamento quando necessário

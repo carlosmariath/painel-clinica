@@ -123,6 +123,27 @@ const BranchSelector: React.FC<BranchSelectorProps> = ({
     return <Typography color="error" variant="caption">{error}</Typography>;
   }
 
+  // Preparando os itens do Menu como um array em vez de usar um Fragment implícito
+  const menuItems = [];
+  
+  // Adicionar opção "Todas as filiais" se necessário
+  if (showAllOptionFinal) {
+    menuItems.push(
+      <MenuItem key="all" value="">
+        <em>Todas as filiais</em>
+      </MenuItem>
+    );
+  }
+  
+  // Adicionar as filiais
+  branchList.forEach((branch) => {
+    menuItems.push(
+      <MenuItem key={branch.id} value={branch.id}>
+        {branch.name}
+      </MenuItem>
+    );
+  });
+
   return (
     <FormControl size={size} sx={{ minWidth: 120 }} disabled={disabled || isLoading}>
       <InputLabel id="branch-selector-label">{label}</InputLabel>
@@ -132,16 +153,7 @@ const BranchSelector: React.FC<BranchSelectorProps> = ({
         label={label}
         onChange={(e) => handleChange(e.target.value === '' ? null : e.target.value)}
       >
-        {showAllOptionFinal && (
-          <MenuItem value="">
-            <em>Todas as filiais</em>
-          </MenuItem>
-        )}
-        {branchList.map((branch) => (
-          <MenuItem key={branch.id} value={branch.id}>
-            {branch.name}
-          </MenuItem>
-        ))}
+        {menuItems}
       </Select>
     </FormControl>
   );

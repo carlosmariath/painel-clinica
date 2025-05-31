@@ -28,15 +28,22 @@ import {
 import {
   Add as AddIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Business as BusinessIcon,
+  Visibility as VisibilityIcon
 } from '@mui/icons-material';
-import { TherapyPlan, therapyPlanService } from '../services/therapyPlanService';
+import { therapyPlanService } from '../services/therapyPlanService';
+import { TherapyPlan, CreateTherapyPlanDTO, TherapyPlanFilters, UpdateTherapyPlanDTO } from '../types/therapyPlan';
 import { useBranch } from '../context/BranchContext';
 import TherapyPlanForm from '../components/TherapyPlanForm';
 import { CURRENCY_LOCALE, CURRENCY_OPTIONS } from '../config';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const TherapyPlans = () => {
-  const { currentBranch } = useBranch();
+  const { branches, loadBranches } = useBranch();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<TherapyPlan[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [openForm, setOpenForm] = useState<boolean>(false);
@@ -46,16 +53,41 @@ const TherapyPlans = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Carregar planos
+  // Carregar planos e filiais
   useEffect(() => {
     loadPlans();
-  }, [currentBranch]);
+    
+    // Garantir que as filiais estejam carregadas
+    if (branches.length === 0) {
+      console.log('Carregando filiais...');
+      loadBranches();
+    } else {
+      console.log('Filiais já carregadas:', branches.length);
+    }
+  }, []);
 
   const loadPlans = async () => {
     setLoading(true);
     try {
-      const data = await therapyPlanService.getPlans(currentBranch?.id);
-      setPlans(data);
+      // Não usamos mais o currentBranch para filtrar
+      // Utilizamos as filiais do usuário do token
+      const data = await therapyPlanService.getPlans({});
+      
+      // Garantir que todos os planos tenham o campo branches corretamente formatado como array
+      const formattedPlans = data.map((plan: TherapyPlan) => {
+        // Garantir que o plano tenha a propriedade branches como array
+        if (!plan.branches || !Array.isArray(plan.branches)) {
+          console.log('Plano sem branches ou com formato inválido:', plan.id);
+          return {
+            ...plan,
+            branches: []
+          };
+        }
+        
+        return plan;
+      });
+      
+      setPlans(formattedPlans);
     } catch (error) {
       console.error('Erro ao carregar planos:', error);
     } finally {
@@ -64,13 +96,57 @@ const TherapyPlans = () => {
   };
 
   const handleAddPlan = () => {
-    setSelectedPlan(undefined);
-    setOpenForm(true);
+    // Garantir que temos filiais antes de abrir o formulário
+    if (branches.length === 0) {
+      console.log('Carregando filiais antes de abrir o formulário...');
+      loadBranches().then(() => {
+        console.log('Filiais carregadas, abrindo formulário');
+        setSelectedPlan(undefined);
+        setOpenForm(true);
+      });
+    } else {
+      console.log('Filiais disponíveis, abrindo formulário');
+      setSelectedPlan(undefined);
+      setOpenForm(true);
+    }
   };
 
   const handleEditPlan = (plan: TherapyPlan) => {
-    setSelectedPlan(plan);
-    setOpenForm(true);
+    console.log('Plano selecionado para edição:', plan);
+    
+    // Garantir que temos filiais antes de abrir o formulário
+    if (branches.length === 0) {
+      console.log('Carregando filiais antes de editar...');
+      loadBranches();
+    }
+    
+    // Sempre buscar os dados mais recentes da API para edição
+    setLoading(true);
+    
+    therapyPlanService.getPlanById(plan.id)
+      .then(fullPlan => {
+        // Garantir que o plano tem branches como array
+        if (!fullPlan.branches) {
+          fullPlan.branches = [];
+        }
+        
+        console.log('Plano completo carregado para edição:', fullPlan);
+        setSelectedPlan(fullPlan);
+        setOpenForm(true);
+      })
+      .catch(error => {
+        console.error('Erro ao carregar detalhes do plano:', error);
+        // Em caso de erro, tentar usar o que temos
+        const planWithBranches = {
+          ...plan,
+          branches: plan.branches || []
+        };
+        setSelectedPlan(planWithBranches);
+        setOpenForm(true);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   const handleDeleteClick = (plan: TherapyPlan) => {
@@ -91,11 +167,15 @@ const TherapyPlans = () => {
     }
   };
 
-  const handleFormSubmit = async (data: Omit<TherapyPlan, 'id'>) => {
+  const handleFormSubmit = async (data: CreateTherapyPlanDTO) => {
     try {
       if (selectedPlan) {
         // Atualizar plano existente
-        await therapyPlanService.updatePlan(selectedPlan.id, data);
+        const updateData: UpdateTherapyPlanDTO = {
+          ...data,
+          id: selectedPlan.id
+        };
+        await therapyPlanService.updatePlan(selectedPlan.id, updateData);
       } else {
         // Criar novo plano
         await therapyPlanService.createPlan(data);
@@ -118,12 +198,12 @@ const TherapyPlans = () => {
 
   // Métricas dos planos
   const activePlansCount = plans.filter(plan => plan.isActive).length;
-  const inactivePlansCount = plans.length - activePlansCount;
+  const totalInactive = plans.length - activePlansCount;
   const averagePrice = plans.length > 0
-    ? plans.reduce((acc, plan) => acc + plan.price, 0) / plans.length
+    ? plans.reduce((acc, plan) => acc + plan.totalPrice, 0) / plans.length
     : 0;
   const averageSessions = plans.length > 0
-    ? plans.reduce((acc, plan) => acc + plan.sessionCount, 0) / plans.length
+    ? plans.reduce((acc, plan) => acc + plan.totalSessions, 0) / plans.length
     : 0;
 
   // Aplicar paginação
@@ -131,6 +211,10 @@ const TherapyPlans = () => {
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
   );
+
+  const handleViewPlan = (planId: string) => {
+    navigate(`/planos/${planId}`);
+  };
 
   return (
     <Container maxWidth="lg">
@@ -181,6 +265,18 @@ const TherapyPlans = () => {
             <Card>
               <CardContent>
                 <Typography color="textSecondary" gutterBottom>
+                  Planos Inativos
+                </Typography>
+                <Typography variant="h5" component="div" color="text.secondary">
+                  {totalInactive}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
                   Preço Médio
                 </Typography>
                 <Typography variant="h5" component="div">
@@ -220,14 +316,25 @@ const TherapyPlans = () => {
                           <TableCell>Validade (dias)</TableCell>
                           <TableCell align="right">Preço</TableCell>
                           <TableCell>Status</TableCell>
-                          <TableCell>Filial</TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <BusinessIcon fontSize="small" />
+                              <Typography variant="inherit">Filiais</Typography>
+                            </Box>
+                          </TableCell>
                           <TableCell align="center">Ações</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
                         {displayedPlans.length > 0 ? (
                           displayedPlans.map((plan) => (
-                            <TableRow key={plan.id}>
+                            <TableRow 
+                              key={plan.id}
+                              sx={{ 
+                                opacity: plan.isActive ? 1 : 0.7,
+                                bgcolor: plan.isActive ? 'inherit' : 'rgba(0, 0, 0, 0.04)'
+                              }}
+                            >
                               <TableCell>
                                 <Typography variant="body2" fontWeight="medium">
                                   {plan.name}
@@ -238,20 +345,36 @@ const TherapyPlans = () => {
                                   </Typography>
                                 )}
                               </TableCell>
-                              <TableCell>{plan.sessionCount}</TableCell>
-                              <TableCell>{plan.validityDays}</TableCell>
+                              <TableCell>{plan.totalSessions}</TableCell>
+                              <TableCell>{plan.validityDays} dias</TableCell>
                               <TableCell align="right">
-                                {new Intl.NumberFormat(CURRENCY_LOCALE, CURRENCY_OPTIONS).format(plan.price)}
+                                {new Intl.NumberFormat(CURRENCY_LOCALE, CURRENCY_OPTIONS).format(plan.totalPrice)}
                               </TableCell>
                               <TableCell>
-                                {plan.isActive ? (
-                                  <Chip label="Ativo" color="success" size="small" />
+                                <Chip
+                                  label={plan.isActive ? 'Ativo' : 'Inativo'}
+                                  color={plan.isActive ? 'success' : 'default'}
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                {plan.branches && plan.branches.length > 0 ? (
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {plan.branches.map((branch) => (
+                                      <Chip 
+                                        key={branch.id}
+                                        label={branch.name}
+                                        size="small"
+                                        color="info"
+                                        variant="outlined"
+                                      />
+                                    ))}
+                                  </Box>
                                 ) : (
-                                  <Chip label="Inativo" color="default" size="small" />
+                                  <Typography variant="caption" color="text.secondary">
+                                    Nenhuma filial associada
+                                  </Typography>
                                 )}
-                              </TableCell>
-                              <TableCell>
-                                {currentBranch?.id === plan.branchId ? currentBranch.name : plan.branchId}
                               </TableCell>
                               <TableCell align="center">
                                 <Tooltip title="Editar">
@@ -261,6 +384,15 @@ const TherapyPlans = () => {
                                     onClick={() => handleEditPlan(plan)}
                                   >
                                     <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Ver Detalhes">
+                                  <IconButton
+                                    size="small"
+                                    color="info"
+                                    onClick={() => handleViewPlan(plan.id)}
+                                  >
+                                    <VisibilityIcon fontSize="small" />
                                   </IconButton>
                                 </Tooltip>
                                 <Tooltip title="Excluir">

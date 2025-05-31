@@ -9,24 +9,24 @@ import BranchSelector from '../components/BranchSelector';
 
 interface AppointmentListProps {
   appointments: any[];
-  clients: any[];
-  therapists: any[];
-  branches: any[];
-  filters: any;
-  onFilterChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSelectChange: (e: any) => void;
-  onBranchChange: (branchId: string | null) => void;
-  onResetFilters: () => void;
+  loading: boolean;
   onEdit: (appointment: any) => void;
   onDelete: (appointment: any) => void;
-  loading: boolean;
+  clients: any[];
+  therapists: any[];
+  branches?: any[];
+  filters?: any;
+  onFilterChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSelectChange?: (e: any) => void;
+  onBranchChange?: (branchId: string | null) => void;
+  onResetFilters?: () => void;
 }
 
 const AppointmentList: React.FC<AppointmentListProps> = ({ 
   appointments, 
   clients, 
   therapists, 
-  branches,
+  branches = [],
   filters, 
   onFilterChange, 
   onSelectChange, 
@@ -54,103 +54,108 @@ const AppointmentList: React.FC<AppointmentListProps> = ({
     return branches.find(branch => branch.id === branchId)?.name || "Filial não encontrada";
   };
 
+  // Se os filtros estiverem disponíveis, exiba o card de filtros
+  const showFilters = filters && onFilterChange && onSelectChange && onBranchChange && onResetFilters;
+
   return (
     <>
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>Filtros</Typography>
-          <Stack spacing={2}>
-            <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
-              <FormControl fullWidth>
-                <InputLabel id="cliente-label">Cliente</InputLabel>
-                <Select
-                  labelId="cliente-label"
-                  label="Cliente"
-                  name="clientId"
-                  value={filters.clientId}
-                  onChange={onSelectChange}
-                >
-                  <MenuItem value="">Todos os clientes</MenuItem>
-                  {clients.map(client => (
-                    <MenuItem key={client.id} value={client.id}>
-                      {client.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+      {showFilters && (
+        <Card sx={{ mb: 4 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Filtros</Typography>
+            <Stack spacing={2}>
+              <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
+                <FormControl fullWidth>
+                  <InputLabel id="cliente-label">Cliente</InputLabel>
+                  <Select
+                    labelId="cliente-label"
+                    label="Cliente"
+                    name="clientId"
+                    value={filters.clientId}
+                    onChange={onSelectChange}
+                  >
+                    <MenuItem value="">Todos os clientes</MenuItem>
+                    {clients.map(client => (
+                      <MenuItem key={client.id} value={client.id}>
+                        {client.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-              <FormControl fullWidth>
-                <InputLabel id="terapeuta-label">Terapeuta</InputLabel>
-                <Select
-                  labelId="terapeuta-label"
-                  label="Terapeuta"
-                  name="therapistId"
-                  value={filters.therapistId}
-                  onChange={onSelectChange}
-                >
-                  <MenuItem value="">Todos os terapeutas</MenuItem>
-                  {therapists.map(therapist => (
-                    <MenuItem key={therapist.id} value={therapist.id}>
-                      {therapist.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              <Box sx={{ width: '100%' }}>
-                <BranchSelector 
-                  value={filters.branchId || ''} 
-                  onChange={onBranchChange}
-                  showAllOption={true}
-                  label="Filial"
+                <FormControl fullWidth>
+                  <InputLabel id="terapeuta-label">Terapeuta</InputLabel>
+                  <Select
+                    labelId="terapeuta-label"
+                    label="Terapeuta"
+                    name="therapistId"
+                    value={filters.therapistId}
+                    onChange={onSelectChange}
+                  >
+                    <MenuItem value="">Todos os terapeutas</MenuItem>
+                    {therapists.map(therapist => (
+                      <MenuItem key={therapist.id} value={therapist.id}>
+                        {therapist.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <Box sx={{ width: '100%' }}>
+                  <BranchSelector 
+                    value={filters.branchId || ''} 
+                    onChange={onBranchChange}
+                    showAllOption={true}
+                    label="Filial"
+                  />
+                </Box>
+              </Box>
+
+              <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
+                <TextField
+                  label="Data Inicial"
+                  name="startDate"
+                  type="date"
+                  value={filters.startDate}
+                  onChange={onFilterChange}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
+
+                <TextField
+                  label="Data Final"
+                  name="endDate"
+                  type="date"
+                  value={filters.endDate}
+                  onChange={onFilterChange}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
                 />
               </Box>
-            </Box>
 
-            <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
-              <TextField
-                label="Data Inicial"
-                name="startDate"
-                type="date"
-                value={filters.startDate}
-                onChange={onFilterChange}
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-              />
-
-              <TextField
-                label="Data Final"
-                name="endDate"
-                type="date"
-                value={filters.endDate}
-                onChange={onFilterChange}
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-              />
-            </Box>
-
-            <Box sx={{ display: "flex", gap: 2 }}>
-              <TextField
-                label="Buscar"
-                name="searchTerm"
-                value={filters.searchTerm}
-                onChange={onFilterChange}
-                fullWidth
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <Button variant="outlined" onClick={onResetFilters}>
-                Limpar Filtros
-              </Button>
-            </Box>
-          </Stack>
-        </CardContent>
-      </Card>
+              <Box sx={{ display: "flex", gap: 2 }}>
+                <TextField
+                  label="Buscar"
+                  name="searchTerm"
+                  value={filters.searchTerm}
+                  onChange={onFilterChange}
+                  fullWidth
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <Button variant="outlined" onClick={onResetFilters}>
+                  Limpar Filtros
+                </Button>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>

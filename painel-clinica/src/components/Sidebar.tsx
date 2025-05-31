@@ -48,19 +48,42 @@ interface MenuItem {
 
 // Array com os itens do menu
 const menuItems: MenuItem[] = [
+  // 1. Dashboard (mantido como primeiro item)
   { text: "Dashboard", icon: <Dashboard />, path: "/" },
+  
+  // 2. Operações Diárias
   { 
     text: "Agendamentos", 
     icon: <EventAvailable />, 
     path: "/appointments-menu",
     children: [
-      { text: "Lista de Agendamentos", icon: <EventAvailable />, path: "/appointments" },
-      { text: "Calendário de Agendamentos", icon: <Schedule />, path: "/appointment-calendar" },
-      { text: "Calendário Kanban", icon: <Schedule />, path: "/calendar" }
+      { text: "Lista de Agendamentos", icon: <EventAvailable />, path: "/appointments" }
     ]
   },
   { text: "Clientes", icon: <Person />, path: "/clients" },
   { text: "Agenda do Terapeuta", icon: <Schedule />, path: "/therapist-schedule" },
+  
+  // 3. Módulo Financeiro
+  {
+    text: 'Planos de Terapia',
+    icon: <LocalOffer />,
+    path: '/planos',
+    roles: ['ADMIN', 'MANAGER']
+  },
+  {
+    text: 'Assinaturas',
+    icon: <CardMembership />,
+    path: '/assinaturas',
+    roles: ['ADMIN', 'MANAGER', 'RECEPTIONIST']
+  },
+  {
+    text: 'Finanças',
+    icon: <Payment />,
+    path: '/financas',
+    roles: ['ADMIN', 'MANAGER', 'FINANCIAL']
+  },
+  
+  // 4. Configurações do Sistema
   { 
     text: "Configurações", 
     icon: <Settings />, 
@@ -82,40 +105,6 @@ const menuItems: MenuItem[] = [
       { text: "Gerenciar Entradas", icon: <QuestionAnswer />, path: "/knowledge-entries" },
       { text: "Categorias", icon: <Category />, path: "/categories" },
       { text: "Perguntas Frequentes", icon: <HelpOutline />, path: "/frequent-questions" }
-    ]
-  },
-  {
-    text: 'Agenda',
-    icon: <Schedule />,
-    path: '/agenda',
-    roles: ['ADMIN', 'THERAPIST', 'MANAGER', 'RECEPTIONIST']
-  },
-  {
-    text: 'Planos de Terapia',
-    icon: <LocalOffer />,
-    path: '/planos',
-    roles: ['ADMIN', 'MANAGER']
-  },
-  {
-    text: 'Assinaturas',
-    icon: <CardMembership />,
-    path: '/assinaturas',
-    roles: ['ADMIN', 'MANAGER', 'RECEPTIONIST']
-  },
-  {
-    text: 'Finanças',
-    icon: <Payment />,
-    path: '/financas',
-    roles: ['ADMIN', 'MANAGER', 'FINANCIAL']
-  },
-  {
-    text: 'Demonstrações',
-    icon: <Engineering />,
-    path: '/demo-menu',
-    children: [
-      { text: 'Demo Planos', icon: <LocalOffer />, path: '/planos-demo' },
-      { text: 'Demo Assinaturas', icon: <CardMembership />, path: '/assinaturas-demo' },
-      { text: 'Demo Finanças', icon: <Payment />, path: '/financas-demo' }
     ]
   },
 ];

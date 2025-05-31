@@ -1,13 +1,13 @@
 import api from "../api";
 import axios from "axios";
+import { API_URL } from "../config";
 
 const ENDPOINT = "/auth";
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 
 // Login precisa usar axios diretamente porque ainda não temos o token
 export const login = async (email: string, password: string) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}${ENDPOINT}/login`, { email, password });
+    const response = await axios.post(`${API_URL}${ENDPOINT}/login`, { email, password });
     const access_token = response.data.access_token;
 
     if (access_token) {

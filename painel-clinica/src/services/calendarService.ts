@@ -29,11 +29,13 @@ export const getCalendarAppointments = async (
   start: string,
   end: string,
   therapistId?: string,
-  clientId?: string
+  clientId?: string,
+  branchId?: string
 ): Promise<AppointmentCalendarItem[]> => {
   let url = `/appointments/calendar?start=${start}&end=${end}`;
   if (therapistId) url += `&therapistId=${therapistId}`;
   if (clientId) url += `&clientId=${clientId}`;
+  if (branchId) url += `&branchId=${branchId}`;
   
   const response = await api.get(url);
   

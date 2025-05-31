@@ -61,3 +61,13 @@ export const updateBranch = async (
 export const deactivateBranch = async (id: string): Promise<void> => {
   await api.delete(`/branches/${id}`);
 }; 
+
+// Exportando as funções agrupadas em um objeto para ser compatível com a importação em TherapyPlanDetails.tsx
+export const branchService = {
+  getBranches,
+  getBranchById,
+  getBranchSummary,
+  createBranch,
+  updateBranch,
+  deactivateBranch
+}; 

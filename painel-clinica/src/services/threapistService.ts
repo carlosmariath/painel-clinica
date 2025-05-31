@@ -55,6 +55,13 @@ export const getTherapistSchedule = async (branchId?: string) => {
   return response.data;
 };
 
+// 🔹 Buscar a disponibilidade de um terapeuta específico (para admins)
+export const getTherapistScheduleById = async (therapistId: string, branchId?: string) => {
+  const params = branchId ? { branchId } : {};
+  const response = await api.get(`${ENDPOINT}/${therapistId}/schedule`, { params });
+  return response.data;
+};
+
 // 🔹 Atualizar a disponibilidade do terapeuta autenticado
 export const updateTherapistSchedule = async (
   schedule: { 
@@ -65,6 +72,19 @@ export const updateTherapistSchedule = async (
   }
 ) => {
   return api.post(`${ENDPOINT}/me/schedule`, schedule);
+};
+
+// 🔹 Atualizar a disponibilidade de um terapeuta específico (para admins)
+export const updateTherapistScheduleById = async (
+  therapistId: string,
+  schedule: { 
+    dayOfWeek: number; 
+    startTime: string; 
+    endTime: string;
+    branchId: string; 
+  }
+) => {
+  return api.post(`${ENDPOINT}/${therapistId}/schedule`, schedule);
 };
 
 // 🔹 Remover um horário de disponibilidade específico
@@ -85,5 +105,16 @@ export const removeBranchFromTherapist = async (therapistId: string, branchId: s
 // 🔹 Buscar filiais do terapeuta
 export const getTherapistBranches = async (therapistId: string) => {
   const response = await api.get(`${ENDPOINT}/${therapistId}/branches`);
+  return response.data;
+};
+
+// 🔹 Buscar todos os horários de um terapeuta (em todas as filiais)
+export const getAllTherapistSchedules = async (therapistId?: string) => {
+  // Se não passar therapistId, pega do terapeuta logado
+  const endpoint = therapistId 
+    ? `${ENDPOINT}/${therapistId}/schedules/all` 
+    : `${ENDPOINT}/me/schedules/all`;
+  
+  const response = await api.get(endpoint);
   return response.data;
 };

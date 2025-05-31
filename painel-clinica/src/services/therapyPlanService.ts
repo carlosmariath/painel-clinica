@@ -1,115 +1,168 @@
-import axios from 'axios';
-import { API_URL } from '../config';
+import api from '../api';
+import { 
+  TherapyPlan, 
+  CreateTherapyPlanDTO, 
+  UpdateTherapyPlanDTO,
+  TherapyPlanFilters,
+  RemoveTherapyPlanResponse,
+  TherapyPlanBranchDTO
+} from '../types/therapyPlan';
 
-export interface TherapyPlan {
-  id: string;
-  name: string;
-  description?: string;
-  sessionCount: number;
-  validityDays: number;
-  price: number;
-  isActive: boolean;
-  branchId: string;
-}
-
-export interface Subscription {
-  id: string;
-  clientId: string;
-  therapyPlanId: string;
-  startDate: string;
-  endDate: string;
-  status: 'ACTIVE' | 'PENDING' | 'EXPIRED' | 'CANCELED';
-  remainingSessions: number;
-  totalSessions: number;
-  acceptanceToken?: string;
-  acceptedAt?: string;
-  therapyPlan?: TherapyPlan;
-  client?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-}
-
-export interface SessionConsumption {
-  id: string;
-  subscriptionId: string;
-  appointmentId: string;
-  consumedAt: string;
-  branchId: string;
-}
-
+/**
+ * Serviço para gerenciar planos de terapia
+ */
 export const therapyPlanService = {
-  // Planos de Terapia
-  getPlans: async (branchId?: string) => {
-    const response = await axios.get(`${API_URL}/therapy-plans${branchId ? `?branchId=${branchId}` : ''}`);
-    return response.data;
+  /**
+   * Busca todos os planos de terapia, com filtros opcionais
+   * Se não for passado um branchId, vai usar as filiais do token do usuário
+   */
+  getPlans: async (filters?: TherapyPlanFilters): Promise<TherapyPlan[]> => {
+    try {
+      const params = new URLSearchParams();
+      
+      // O filtro de filial agora é opcional e será tratado pelo backend
+      // com base no token do usuário, se não for fornecido
+      if (filters?.branchId) {
+        params.append('branchId', filters.branchId);
+      }
+      
+      if (filters?.isActive !== undefined) {
+        params.append('isActive', filters.isActive.toString());
+      }
+      
+      if (filters?.searchTerm) {
+        params.append('search', filters.searchTerm);
+      }
+      
+      const queryString = params.toString();
+      const endpoint = `/therapy-plans${queryString ? `?${queryString}` : ''}`;
+      
+      console.log(`Buscando planos de terapia: ${endpoint}`);
+      const response = await api.get(endpoint);
+      
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar planos de terapia:', error);
+      throw error;
+    }
   },
 
-  getPlanById: async (id: string) => {
-    const response = await axios.get(`${API_URL}/therapy-plans/${id}`);
-    return response.data;
+  /**
+   * Busca um plano específico pelo ID
+   */
+  getPlanById: async (id: string): Promise<TherapyPlan> => {
+    try {
+      console.log(`Buscando plano ID: ${id}`);
+      const response = await api.get(`/therapy-plans/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao buscar plano ${id}:`, error);
+      throw error;
+    }
   },
 
-  createPlan: async (planData: Omit<TherapyPlan, 'id'>) => {
-    const response = await axios.post(`${API_URL}/therapy-plans`, planData);
-    return response.data;
+  /**
+   * Cria um novo plano de terapia
+   */
+  createPlan: async (planData: CreateTherapyPlanDTO): Promise<TherapyPlan> => {
+    try {
+      console.log('Criando novo plano:', planData);
+      const response = await api.post('/therapy-plans', planData);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao criar plano:', error);
+      throw error;
+    }
   },
 
-  updatePlan: async (id: string, planData: Partial<TherapyPlan>) => {
-    const response = await axios.patch(`${API_URL}/therapy-plans/${id}`, planData);
-    return response.data;
+  /**
+   * Atualiza um plano existente
+   */
+  updatePlan: async (id: string, planData: UpdateTherapyPlanDTO): Promise<TherapyPlan> => {
+    try {
+      console.log(`Atualizando plano ${id}:`, planData);
+      const response = await api.patch(`/therapy-plans/${id}`, planData);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao atualizar plano ${id}:`, error);
+      throw error;
+    }
   },
 
-  deletePlan: async (id: string) => {
-    const response = await axios.delete(`${API_URL}/therapy-plans/${id}`);
-    return response.data;
+  /**
+   * Remove um plano existente
+   */
+  deletePlan: async (id: string): Promise<RemoveTherapyPlanResponse> => {
+    try {
+      console.log(`Removendo plano ${id}`);
+      const response = await api.delete(`/therapy-plans/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao remover plano ${id}:`, error);
+      throw error;
+    }
   },
 
-  // Subscrições de Planos
-  getSubscriptions: async (clientId?: string, status?: string, branchId?: string) => {
-    let url = `${API_URL}/therapy-plans/subscriptions`;
-    const params = new URLSearchParams();
-    
-    if (clientId) params.append('clientId', clientId);
-    if (status) params.append('status', status);
-    if (branchId) params.append('branchId', branchId);
-    
-    if (params.toString()) url += `?${params.toString()}`;
-    
-    const response = await axios.get(url);
-    return response.data;
+  /**
+   * Adiciona uma filial a um plano
+   */
+  addBranchToPlan: async (planId: string, branchId: string): Promise<TherapyPlan> => {
+    try {
+      console.log(`Adicionando filial ${branchId} ao plano ${planId}`);
+      const association: TherapyPlanBranchDTO = { therapyPlanId: planId, branchId };
+      const response = await api.post(`/therapy-plans/${planId}/branches`, association);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao adicionar filial ao plano:`, error);
+      throw error;
+    }
   },
 
-  getSubscriptionById: async (id: string) => {
-    const response = await axios.get(`${API_URL}/therapy-plans/subscriptions/${id}`);
-    return response.data;
+  /**
+   * Remove uma filial de um plano
+   */
+  removeBranchFromPlan: async (planId: string, branchId: string): Promise<TherapyPlan> => {
+    try {
+      console.log(`Removendo filial ${branchId} do plano ${planId}`);
+      const response = await api.delete(`/therapy-plans/${planId}/branches/${branchId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao remover filial do plano:`, error);
+      throw error;
+    }
   },
 
-  createSubscription: async (subscriptionData: Omit<Subscription, 'id' | 'status' | 'remainingSessions' | 'acceptanceToken' | 'acceptedAt'>) => {
-    const response = await axios.post(`${API_URL}/therapy-plans/subscriptions`, subscriptionData);
-    return response.data;
-  },
+  /**
+   * Filtra planos localmente com base nos critérios de busca
+   */
+  filterPlans: (plans: TherapyPlan[], filters: TherapyPlanFilters): TherapyPlan[] => {
+    return plans.filter(plan => {
+      // Filtrar por status ativo/inativo
+      if (filters.isActive !== undefined && plan.isActive !== filters.isActive) {
+        return false;
+      }
 
-  acceptSubscription: async (token: string) => {
-    const response = await axios.post(`${API_URL}/therapy-plans/subscriptions/accept/${token}`);
-    return response.data;
-  },
+      // Filtrar por filial
+      if (filters.branchId && plan.branches && plan.branches.length > 0) {
+        const hasBranch = plan.branches.some(branch => branch.id === filters.branchId);
+        if (!hasBranch) {
+          return false;
+        }
+      }
 
-  cancelSubscription: async (id: string) => {
-    const response = await axios.patch(`${API_URL}/therapy-plans/subscriptions/${id}/cancel`);
-    return response.data;
-  },
+      // Filtrar por termo de busca
+      if (filters.searchTerm) {
+        const searchLower = filters.searchTerm.toLowerCase();
+        const nameMatch = plan.name.toLowerCase().includes(searchLower);
+        const descMatch = plan.description?.toLowerCase().includes(searchLower);
+        
+        if (!nameMatch && !descMatch) {
+          return false;
+        }
+      }
 
-  // Consumo de Sessões
-  getConsumptionHistory: async (subscriptionId: string) => {
-    const response = await axios.get(`${API_URL}/therapy-plans/consumption/${subscriptionId}`);
-    return response.data;
-  },
-
-  getSessionsBalance: async (clientId: string) => {
-    const response = await axios.get(`${API_URL}/therapy-plans/client/${clientId}/balance`);
-    return response.data;
+      return true;
+    });
   }
 };
 

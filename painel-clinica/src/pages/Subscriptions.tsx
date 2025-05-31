@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -33,12 +33,15 @@ import {
   Info as InfoIcon,
   Cancel as CancelIcon
 } from '@mui/icons-material';
-import { Subscription, therapyPlanService } from '../services/therapyPlanService';
+import { subscriptionService, Subscription, ConsumptionDetail, CreateSubscriptionDTO } from '../services/subscriptionService';
 import { useBranch } from '../context/BranchContext';
+import { useAuth } from '../context/AuthContext';
 import SubscriptionForm from '../components/SubscriptionForm';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CURRENCY_LOCALE, CURRENCY_OPTIONS } from '../config';
+import { getClients } from '../services/clientsService';
+import { useSnackbar } from 'notistack';
 
 // Interface para o cliente
 interface Client {
@@ -47,16 +50,10 @@ interface Client {
   email: string;
 }
 
-// Interface para detalhes de consumo
-interface ConsumptionDetail {
-  id: string;
-  appointmentId: string;
-  consumedAt: string;
-  branchId: string;
-}
-
 const Subscriptions = () => {
   const { currentBranch } = useBranch();
+  const { user } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -70,40 +67,68 @@ const Subscriptions = () => {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState<boolean>(false);
   const [consumptionHistory, setConsumptionHistory] = useState<ConsumptionDetail[]>([]);
   const [loadingConsumption, setLoadingConsumption] = useState<boolean>(false);
+  const isLoadingRef = useRef(false);
 
   // Carregar assinaturas
   useEffect(() => {
-    loadSubscriptions();
-    loadClients();
+    // Evitar chamadas simultâneas ou duplicadas
+    if (isLoadingRef.current) return;
+    
+    const fetchData = async () => {
+      isLoadingRef.current = true;
+      try {
+        setLoading(true);
+        await loadSubscriptions();
+        await loadClients();
+      } finally {
+        setLoading(false);
+        isLoadingRef.current = false;
+      }
+    };
+    
+    fetchData();
   }, [currentBranch, statusFilter]);
 
   const loadSubscriptions = async () => {
-    setLoading(true);
     try {
-      const data = await therapyPlanService.getSubscriptions(
+      let branchFilter;
+      const isAdmin = user?.role === 'ADMIN';
+      
+      // Se for admin e selecionou uma filial específica, filtra por ela
+      if (isAdmin) {
+        // Administrador pode ver todas as filiais ou filtrar por uma específica
+        branchFilter = currentBranch?.id || undefined;
+      } else {
+        // Não administrador só pode ver as filiais permitidas no JWT
+        branchFilter = user?.allowedBranches || [];
+      }
+      
+      const data = await subscriptionService.getSubscriptions(
         undefined, 
         statusFilter === 'ALL' ? undefined : statusFilter,
-        currentBranch?.id
+        branchFilter
       );
       setSubscriptions(data);
-    } catch (error) {
-      console.error('Erro ao carregar assinaturas:', error);
-    } finally {
-      setLoading(false);
+    } catch (_error) {
+      console.error('Erro ao carregar assinaturas:', _error);
     }
   };
 
   const loadClients = async () => {
     try {
-      // Mock para clientes até existir uma API de clientes
-      // Na implementação real, chamar o serviço de clientes
+      // Buscar clientes da API
+      const data = await getClients();
+      setClients(data);
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+      enqueueSnackbar('Erro ao carregar a lista de clientes', { 
+        variant: 'error' 
+      });
+      // Fallback para alguns clientes de exemplo em caso de erro
       setClients([
         { id: '1', name: 'Cliente 1', email: 'cliente1@example.com' },
         { id: '2', name: 'Cliente 2', email: 'cliente2@example.com' },
-        { id: '3', name: 'Cliente 3', email: 'cliente3@example.com' },
       ]);
-    } catch (error) {
-      console.error('Erro ao carregar clientes:', error);
     }
   };
 
@@ -128,7 +153,7 @@ const Subscriptions = () => {
     // Carregar histórico de consumo
     setLoadingConsumption(true);
     try {
-      const history = await therapyPlanService.getConsumptionHistory(subscription.id);
+      const history = await subscriptionService.getConsumptionHistory(subscription.id);
       setConsumptionHistory(history);
     } catch (error) {
       console.error('Erro ao carregar histórico de consumo:', error);
@@ -142,7 +167,7 @@ const Subscriptions = () => {
     if (!selectedSubscription) return;
     
     try {
-      await therapyPlanService.cancelSubscription(selectedSubscription.id);
+      await subscriptionService.cancelSubscription(selectedSubscription.id);
       // Atualizar a lista
       loadSubscriptions();
       setCancelDialogOpen(false);
@@ -152,25 +177,33 @@ const Subscriptions = () => {
   };
 
   const handleDeleteConfirm = async () => {
-    // Na implementação real, adicionar um endpoint para excluir assinaturas
-    // Por enquanto, apenas fechar o diálogo
-    setDeleteDialogOpen(false);
-    loadSubscriptions();
+    if (!selectedSubscription) return;
+    
+    try {
+      await subscriptionService.deleteSubscription(selectedSubscription.id);
+      // Atualizar a lista
+      loadSubscriptions();
+      setDeleteDialogOpen(false);
+    } catch (error) {
+      console.error('Erro ao excluir assinatura:', error);
+    }
   };
 
-  const handleFormSubmit = async (data: any) => {
+  const handleFormSubmit = async (data: CreateSubscriptionDTO) => {
     try {
-      await therapyPlanService.createSubscription({
-        clientId: data.clientId,
-        therapyPlanId: data.therapyPlanId,
-        startDate: data.startDate
-      });
+      await subscriptionService.createSubscription(data);
       
       // Recarregar lista
-      loadSubscriptions();
+      await loadSubscriptions();
       setOpenForm(false);
+      enqueueSnackbar('Assinatura criada com sucesso!', { 
+        variant: 'success' 
+      });
     } catch (error) {
       console.error('Erro ao criar assinatura:', error);
+      enqueueSnackbar('Erro ao criar a assinatura. Tente novamente.', { 
+        variant: 'error' 
+      });
     }
   };
 
@@ -192,13 +225,14 @@ const Subscriptions = () => {
     try {
       const date = new Date(dateString);
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
-    } catch (error) {
+    } catch {
+      // Retorna a string original em caso de erro
       return dateString;
     }
   };
 
   // Obter cor do chip de status
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): "success" | "warning" | "error" | "default" => {
     switch (status) {
       case 'ACTIVE':
         return 'success';
@@ -389,7 +423,7 @@ const Subscriptions = () => {
                               <TableCell>
                                 <Chip
                                   label={getStatusText(subscription.status)}
-                                  color={getStatusColor(subscription.status) as any}
+                                  color={getStatusColor(subscription.status)}
                                   size="small"
                                 />
                               </TableCell>
@@ -556,7 +590,7 @@ const Subscriptions = () => {
                   </Typography>
                   {selectedSubscription.therapyPlan && (
                     <Typography variant="body2">
-                      <strong>Valor do Plano:</strong> {new Intl.NumberFormat(CURRENCY_LOCALE, CURRENCY_OPTIONS).format(selectedSubscription.therapyPlan.price)}
+                      <strong>Valor do Plano:</strong> {new Intl.NumberFormat(CURRENCY_LOCALE, CURRENCY_OPTIONS).format(selectedSubscription.therapyPlan.totalPrice)}
                     </Typography>
                   )}
                 </Box>
