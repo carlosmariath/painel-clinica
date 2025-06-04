@@ -751,46 +751,54 @@ const Appointments = () => {
       <Dialog open={openEventModal} onClose={() => setOpenEventModal(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Detalhes do Agendamento</DialogTitle>
         <DialogContent>
-          {selectedEvent && (
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <Typography variant="h6">
-                  {selectedEvent.extendedProps.client?.name}
-                </Typography>
-                <Typography variant="subtitle1" color="textSecondary">
-                  {selectedEvent.extendedProps.service?.name} | 
-                  {format(new Date(selectedEvent.extendedProps.date), 'dd/MM/yyyy', { locale: ptBR })} às {selectedEvent.extendedProps.startTime}
-                </Typography>
-              </Grid>
-              <Grid item xs={12}>
-                <Typography variant="subtitle2">Terapeuta</Typography>
-                <Typography>{selectedEvent.extendedProps.therapist?.name}</Typography>
-              </Grid>
-              <Grid item xs={12}>
-                <Typography variant="subtitle2">Status</Typography>
-                <Typography>{selectedEvent.extendedProps.status === 'CONFIRMED' ? 'Confirmado' : 
-                            selectedEvent.extendedProps.status === 'CANCELED' ? 'Cancelado' : 
-                            selectedEvent.extendedProps.status === 'PENDING' ? 'Pendente' : 
-                            selectedEvent.extendedProps.status}</Typography>
-              </Grid>
-              {selectedEvent.extendedProps.notes && (
+          {selectedEvent && (() => {
+            // Normalizar dados dependendo se vem do FullCalendar (extendedProps) ou Kanban (direto)
+            const eventData = selectedEvent.extendedProps || selectedEvent;
+            const originalAppointment = eventData.originalAppointment || selectedEvent;
+            
+            return (
+              <Grid container spacing={2}>
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2">Observações</Typography>
-                  <Typography>{selectedEvent.extendedProps.notes}</Typography>
+                  <Typography variant="h6">
+                    {eventData.client?.name || 'Cliente não informado'}
+                  </Typography>
+                  <Typography variant="subtitle1" color="textSecondary">
+                    {eventData.service?.name || 'Serviço não informado'} | 
+                    {eventData.date && format(new Date(eventData.date), 'dd/MM/yyyy', { locale: ptBR })} às {eventData.startTime}
+                  </Typography>
                 </Grid>
-              )}
-              <Grid item xs={12}>
-                <Typography variant="subtitle2">Filial</Typography>
-                <Typography>{selectedEvent.extendedProps.branch?.name}</Typography>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2">Terapeuta</Typography>
+                  <Typography>{eventData.therapist?.name || 'Não informado'}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2">Status</Typography>
+                  <Typography>{eventData.status === 'CONFIRMED' ? 'Confirmado' : 
+                              eventData.status === 'CANCELED' ? 'Cancelado' : 
+                              eventData.status === 'PENDING' ? 'Pendente' : 
+                              eventData.status}</Typography>
+                </Grid>
+                {eventData.notes && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2">Observações</Typography>
+                    <Typography>{eventData.notes}</Typography>
+                  </Grid>
+                )}
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2">Filial</Typography>
+                  <Typography>{eventData.branch?.name || 'Não informado'}</Typography>
+                </Grid>
               </Grid>
-            </Grid>
-          )}
+            );
+          })()}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenEventModal(false)}>Fechar</Button>
           <Button 
             onClick={() => {
-              handleOpenForm(selectedEvent.extendedProps.originalAppointment);
+              const eventData = selectedEvent.extendedProps || selectedEvent;
+              const originalAppointment = eventData.originalAppointment || selectedEvent;
+              handleOpenForm(originalAppointment);
               setOpenEventModal(false);
             }} 
             color="primary"
