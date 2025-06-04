@@ -71,8 +71,9 @@ interface TherapistAvailabilityGridProps {
   therapists: Therapist[];
   selectedDate: string;
   selectedService?: Service;
+  branchId?: string;
   onSelectTherapist: (therapistId: string, time: string) => void;
-  getAvailability: (therapistId: string, date: string, serviceId?: string) => Promise<AvailabilityResponse>;
+  getAvailability: (therapistId: string, date: string, serviceId?: string, branchId?: string) => Promise<AvailabilityResponse>;
   loading?: boolean;
 }
 
@@ -80,6 +81,7 @@ const TherapistAvailabilityGrid: React.FC<TherapistAvailabilityGridProps> = ({
   therapists,
   selectedDate,
   selectedService,
+  branchId,
   onSelectTherapist,
   getAvailability,
   loading = false
@@ -117,16 +119,32 @@ const TherapistAvailabilityGrid: React.FC<TherapistAvailabilityGridProps> = ({
             const response = await getAvailability(
               therapist.id,
               selectedDate,
-              selectedService?.id
+              selectedService?.id,
+              branchId
             );
 
             // Assumindo que a resposta tem availableSlots e busySlots
             const { availableSlots = [], busySlots = [], workSchedule } = response;
 
+            // Se não há workSchedule, significa que o terapeuta não tem disponibilidade
+            if (!workSchedule) {
+              return {
+                therapist: {
+                  id: therapist.id,
+                  name: therapist.name,
+                  avatar: therapist.avatar,
+                  specialty: therapist.specialty
+                },
+                slots: [],
+                totalAvailable: 0,
+                workSchedule: undefined
+              };
+            }
+
             // Gerar todos os slots possíveis
             const allSlots = generateTimeSlots(
-              workSchedule?.start || '08:00',
-              workSchedule?.end || '18:00',
+              workSchedule.start,
+              workSchedule.end,
               selectedService?.averageDuration || 60
             );
 
@@ -170,7 +188,7 @@ const TherapistAvailabilityGrid: React.FC<TherapistAvailabilityGridProps> = ({
     };
 
     fetchAllAvailabilities();
-  }, [selectedDate, therapists, selectedService, getAvailability]);
+  }, [selectedDate, therapists, selectedService, branchId, getAvailability]);
 
   const handleSlotClick = (therapistId: string, time: string) => {
     setSelectedSlot({ therapistId, time });
@@ -243,7 +261,7 @@ const TherapistAvailabilityGrid: React.FC<TherapistAvailabilityGridProps> = ({
       </Typography>
       
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        {format(new Date(selectedDate), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+        {format(new Date(selectedDate + 'T12:00:00'), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}
         {selectedService && ` • ${selectedService.name} (${selectedService.averageDuration}min)`}
       </Typography>
 

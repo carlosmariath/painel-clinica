@@ -32,7 +32,8 @@ import {
   Engineering,
   LocalOffer,
   Payment,
-  CardMembership
+  CardMembership,
+  AccessTime
 } from "@mui/icons-material";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -62,6 +63,7 @@ const menuItems: MenuItem[] = [
   },
   { text: "Clientes", icon: <Person />, path: "/clients" },
   { text: "Agenda do Terapeuta", icon: <Schedule />, path: "/therapist-schedule" },
+  { text: "Disponibilidade do Terapeuta", icon: <AccessTime />, path: "/therapist-availability" },
   
   // 3. Módulo Financeiro
   {

@@ -8,11 +8,27 @@ import {
   Button,
   CircularProgress,
   Box,
-  InputAdornment
+  InputAdornment,
+  Divider,
+  Typography,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
+  FormHelperText,
+  Grid,
+  FormControlLabel,
+  Switch
 } from "@mui/material";
 import { createClient, updateClient } from "../services/clientsService";
 import { useNotification } from "./Notification";
-import { Person, Email, Phone } from "@mui/icons-material";
+import { Person, Email, Phone, AttachMoney } from "@mui/icons-material";
+import therapyPlanService from "../services/therapyPlanService";
+import subscriptionService from "../services/subscriptionService";
+import { getBranches } from "../services/branchService";
+import { Branch } from "../types/branch";
+import { TherapyPlan } from "../types/therapyPlan";
 
 interface Client {
   id: string;
@@ -32,28 +48,98 @@ interface FormData {
   name: string;
   email: string;
   phone: string;
+  addPlan: boolean; // Novo campo para controlar se adiciona plano ou não
+  planId: string;   // ID do plano selecionado
+  branchId: string; // ID da filial selecionada
 }
 
 interface FormErrors {
   name?: string;
   email?: string;
   phone?: string;
+  planId?: string;
+  branchId?: string;
 }
 
 const ClientForm = ({ open, onClose, onSave, client }: ClientFormProps) => {
-  const [formData, setFormData] = useState<FormData>({ name: "", email: "", phone: "" });
+  const [formData, setFormData] = useState<FormData>({ 
+    name: "", 
+    email: "", 
+    phone: "",
+    addPlan: false,
+    planId: "",
+    branchId: ""
+  });
   const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(false);
+  const [savingSubscription, setSavingSubscription] = useState(false);
+  const [plans, setPlans] = useState<TherapyPlan[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<TherapyPlan | null>(null);
   const { showNotification } = useNotification();
+
+  // Carregar planos e filiais
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoadingPlans(true);
+        const [plansData, branchesData] = await Promise.all([
+          therapyPlanService.getPlans({ isActive: true }),
+          getBranches()
+        ]);
+        
+        setPlans(plansData);
+        setBranches(branchesData);
+        
+        if (branchesData.length > 0) {
+          setFormData(prev => ({ ...prev, branchId: branchesData[0].id }));
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+        showNotification("Erro ao carregar planos ou filiais", "error");
+      } finally {
+        setLoadingPlans(false);
+      }
+    };
+
+    if (open) {
+      fetchData();
+    }
+  }, [open, showNotification]);
+
+  // Atualizar detalhes do plano selecionado
+  useEffect(() => {
+    if (formData.planId) {
+      const plan = plans.find(p => p.id === formData.planId) || null;
+      setSelectedPlan(plan);
+    } else {
+      setSelectedPlan(null);
+    }
+  }, [formData.planId, plans]);
 
   useEffect(() => {
     if (client) {
-      setFormData({ name: client.name, email: client.email, phone: client.phone || "" });
+      setFormData({ 
+        name: client.name, 
+        email: client.email, 
+        phone: client.phone || "",
+        addPlan: false,
+        planId: "",
+        branchId: branches.length > 0 ? branches[0].id : ""
+      });
     } else {
-      setFormData({ name: "", email: "", phone: "" });
+      setFormData({ 
+        name: "", 
+        email: "", 
+        phone: "",
+        addPlan: false,
+        planId: "",
+        branchId: branches.length > 0 ? branches[0].id : ""
+      });
     }
     setErrors({});
-  }, [client]);
+  }, [client, branches]);
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -99,6 +185,31 @@ const ClientForm = ({ open, onClose, onSave, client }: ClientFormProps) => {
     }
   };
 
+  const handleSelectChange = (e: SelectChangeEvent) => {
+    const name = e.target.name as keyof FormData;
+    const value = e.target.value as string;
+    
+    setFormData({ ...formData, [name]: value });
+    
+    // Limpa o erro do campo quando o usuário seleciona algo
+    if (errors[name as keyof FormErrors]) {
+      setErrors({ ...errors, [name]: undefined });
+    }
+  };
+
+  const handleSwitchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, addPlan: e.target.checked });
+    
+    // Se desativou a opção de adicionar plano, limpar erros relacionados
+    if (!e.target.checked) {
+      setErrors({ 
+        ...errors, 
+        planId: undefined,
+        branchId: undefined
+      });
+    }
+  };
+
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
@@ -121,6 +232,17 @@ const ClientForm = ({ open, onClose, onSave, client }: ClientFormProps) => {
       newErrors.phone = "Telefone inválido. Use o formato (11) 99999-9999";
     }
 
+    // Validação do plano (se a opção de adicionar plano estiver ativada)
+    if (formData.addPlan) {
+      if (!formData.planId) {
+        newErrors.planId = "Selecione um plano";
+      }
+      
+      if (!formData.branchId) {
+        newErrors.branchId = "Selecione uma filial";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -132,19 +254,45 @@ const ClientForm = ({ open, onClose, onSave, client }: ClientFormProps) => {
 
     setLoading(true);
     try {
-      // Remove formatação do telefone antes de enviar
-      const dataToSend = {
-        ...formData,
-        phone: formData.phone.replace(/\D/g, "")
+      // Prepara apenas os dados do cliente para enviar
+      const clientData = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone.replace(/\D/g, "") // Remove formatação do telefone
       };
 
+      let clientId = '';
+      
       if (client) {
-        await updateClient(client.id, dataToSend);
+        const updatedClient = await updateClient(client.id, clientData);
+        clientId = updatedClient.id;
         showNotification("Cliente atualizado com sucesso!", "success");
       } else {
-        await createClient(dataToSend);
+        const newClient = await createClient(clientData);
+        clientId = newClient.id;
         showNotification("Cliente criado com sucesso!", "success");
       }
+      
+      // Se a opção de adicionar plano estiver ativada, criar a assinatura
+      if (formData.addPlan && formData.planId && clientId) {
+        try {
+          setSavingSubscription(true);
+          
+          await subscriptionService.createSubscription({
+            clientId,
+            planId: formData.planId,
+            branchId: formData.branchId
+          });
+          
+          showNotification("Plano associado ao cliente com sucesso!", "success");
+        } catch (subscriptionError) {
+          console.error("Erro ao associar plano:", subscriptionError);
+          showNotification("Erro ao associar plano ao cliente", "error");
+        } finally {
+          setSavingSubscription(false);
+        }
+      }
+      
       onSave();
       onClose();
     } catch (error) {
@@ -152,7 +300,15 @@ const ClientForm = ({ open, onClose, onSave, client }: ClientFormProps) => {
       
       // Tratamento de erros específicos do backend
       if (error instanceof Error) {
-        const axiosError = error as any; // Temporário para acessar response
+        const axiosError = error as { 
+          response?: { 
+            status?: number; 
+            data?: { 
+              message?: string 
+            } 
+          } 
+        };
+        
         if (axiosError.response?.status === 409) {
           showNotification("Email já cadastrado", "error");
           setErrors({ email: "Este email já está em uso" });
@@ -170,8 +326,15 @@ const ClientForm = ({ open, onClose, onSave, client }: ClientFormProps) => {
   };
 
   const handleClose = () => {
-    if (!loading) {
-      setFormData({ name: "", email: "", phone: "" });
+    if (!loading && !savingSubscription) {
+      setFormData({ 
+        name: "", 
+        email: "", 
+        phone: "",
+        addPlan: false,
+        planId: "",
+        branchId: ""
+      });
       setErrors({});
       onClose();
     }
@@ -182,8 +345,8 @@ const ClientForm = ({ open, onClose, onSave, client }: ClientFormProps) => {
       open={open} 
       onClose={handleClose} 
       fullWidth 
-      maxWidth="sm"
-      disableEscapeKeyDown={loading}
+      maxWidth="md"
+      disableEscapeKeyDown={loading || savingSubscription}
     >
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -256,24 +419,136 @@ const ClientForm = ({ open, onClose, onSave, client }: ClientFormProps) => {
               ),
             }}
           />
+          
+          <Box sx={{ mt: 3, mb: 1 }}>
+            <Divider />
+          </Box>
+          
+          <Box sx={{ mt: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.addPlan}
+                  onChange={handleSwitchChange}
+                  name="addPlan"
+                  color="primary"
+                  disabled={loading || loadingPlans}
+                />
+              }
+              label={
+                <Typography variant="subtitle1" color="primary">
+                  Adicionar Plano de Terapia
+                </Typography>
+              }
+            />
+            
+            {formData.addPlan && (
+              <Box sx={{ mt: 2 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth error={!!errors.planId}>
+                      <InputLabel>Plano de Terapia</InputLabel>
+                      <Select
+                        name="planId"
+                        value={formData.planId}
+                        onChange={handleSelectChange}
+                        label="Plano de Terapia"
+                        disabled={loading || loadingPlans}
+                        startAdornment={
+                          <InputAdornment position="start">
+                            <AttachMoney />
+                          </InputAdornment>
+                        }
+                      >
+                        <MenuItem value="" disabled>
+                          <em>Selecione um plano</em>
+                        </MenuItem>
+                        {plans.map(plan => (
+                          <MenuItem key={plan.id} value={plan.id}>
+                            {plan.name} - {plan.totalSessions} sessões
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.planId && <FormHelperText>{errors.planId}</FormHelperText>}
+                    </FormControl>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth error={!!errors.branchId}>
+                      <InputLabel>Filial</InputLabel>
+                      <Select
+                        name="branchId"
+                        value={formData.branchId}
+                        onChange={handleSelectChange}
+                        label="Filial"
+                        disabled={loading || loadingPlans}
+                      >
+                        <MenuItem value="" disabled>
+                          <em>Selecione uma filial</em>
+                        </MenuItem>
+                        {branches.map(branch => (
+                          <MenuItem key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.branchId && <FormHelperText>{errors.branchId}</FormHelperText>}
+                    </FormControl>
+                  </Grid>
+                </Grid>
+                
+                {selectedPlan && (
+                  <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Detalhes do Plano
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          Nome: <Typography component="span" fontWeight="medium">{selectedPlan.name}</Typography>
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          Preço: <Typography component="span" fontWeight="medium">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPlan.totalPrice)}
+                          </Typography>
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          Sessões: <Typography component="span" fontWeight="medium">{selectedPlan.totalSessions}</Typography>
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          Validade: <Typography component="span" fontWeight="medium">{selectedPlan.validityDays} dias</Typography>
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+              </Box>
+            )}
+          </Box>
         </Box>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions>
         <Button 
           onClick={handleClose} 
           color="inherit"
-          disabled={loading}
+          disabled={loading || savingSubscription}
         >
           Cancelar
         </Button>
         <Button 
           onClick={handleSubmit} 
-          color="primary" 
-          variant="contained"
-          disabled={loading || !formData.name || !formData.email}
-          startIcon={loading ? <CircularProgress size={20} /> : null}
+          variant="contained" 
+          color="primary"
+          disabled={loading || savingSubscription}
+          startIcon={loading || savingSubscription ? <CircularProgress size={20} /> : null}
         >
-          {loading ? "Salvando..." : "Salvar"}
+          {loading || savingSubscription ? 'Salvando...' : 'Salvar'}
         </Button>
       </DialogActions>
     </Dialog>

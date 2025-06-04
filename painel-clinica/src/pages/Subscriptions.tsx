@@ -41,7 +41,6 @@ import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CURRENCY_LOCALE, CURRENCY_OPTIONS } from '../config';
 import { getClients } from '../services/clientsService';
-import { useSnackbar } from 'notistack';
 
 // Interface para o cliente
 interface Client {
@@ -53,20 +52,29 @@ interface Client {
 const Subscriptions = () => {
   const { currentBranch } = useBranch();
   const { user } = useAuth();
-  const { enqueueSnackbar } = useSnackbar();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 0
+  });
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [openForm, setOpenForm] = useState<boolean>(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState<boolean>(false);
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [statusFilter, setStatusFilter] = useState<string>('ACTIVE');
   const [detailsDialogOpen, setDetailsDialogOpen] = useState<boolean>(false);
   const [consumptionHistory, setConsumptionHistory] = useState<ConsumptionDetail[]>([]);
   const [loadingConsumption, setLoadingConsumption] = useState<boolean>(false);
+  const [stats, setStats] = useState({
+    activeCount: 0,
+    pendingCount: 0,
+    expiredCount: 0,
+    canceledCount: 0
+  });
   const isLoadingRef = useRef(false);
 
   // Carregar assinaturas
@@ -87,7 +95,7 @@ const Subscriptions = () => {
     };
     
     fetchData();
-  }, [currentBranch, statusFilter]);
+  }, [currentBranch, statusFilter, pagination.page, pagination.limit]);
 
   const loadSubscriptions = async () => {
     try {
@@ -103,12 +111,24 @@ const Subscriptions = () => {
         branchFilter = user?.allowedBranches || [];
       }
       
-      const data = await subscriptionService.getSubscriptions(
+      const response = await subscriptionService.getSubscriptions(
         undefined, 
         statusFilter === 'ALL' ? undefined : statusFilter,
-        branchFilter
+        branchFilter,
+        pagination.page,
+        pagination.limit
       );
-      setSubscriptions(data);
+      
+      // Atualizar dados paginados
+      setSubscriptions(response.data);
+      setPagination(prev => ({
+        ...prev,
+        total: response.total,
+        totalPages: response.totalPages
+      }));
+      
+      // Carregar estatísticas sempre para manter os cards atualizados
+      loadStats();
     } catch (_error) {
       console.error('Erro ao carregar assinaturas:', _error);
     }
@@ -121,14 +141,41 @@ const Subscriptions = () => {
       setClients(data);
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
-      enqueueSnackbar('Erro ao carregar a lista de clientes', { 
-        variant: 'error' 
-      });
       // Fallback para alguns clientes de exemplo em caso de erro
       setClients([
         { id: '1', name: 'Cliente 1', email: 'cliente1@example.com' },
         { id: '2', name: 'Cliente 2', email: 'cliente2@example.com' },
       ]);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      let branchFilter;
+      const isAdmin = user?.role === 'ADMIN';
+      
+      if (isAdmin) {
+        branchFilter = currentBranch?.id || undefined;
+      } else {
+        branchFilter = user?.allowedBranches || [];
+      }
+      
+      // Buscar contadores para cada status
+      const [activeData, pendingData, expiredData, canceledData] = await Promise.all([
+        subscriptionService.getSubscriptions(undefined, 'ACTIVE', branchFilter, 1, 1),
+        subscriptionService.getSubscriptions(undefined, 'PENDING', branchFilter, 1, 1),
+        subscriptionService.getSubscriptions(undefined, 'EXPIRED', branchFilter, 1, 1),
+        subscriptionService.getSubscriptions(undefined, 'CANCELED', branchFilter, 1, 1),
+      ]);
+      
+      setStats({
+        activeCount: activeData.total,
+        pendingCount: pendingData.total,
+        expiredCount: expiredData.total,
+        canceledCount: canceledData.total
+      });
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas:', error);
     }
   };
 
@@ -196,24 +243,19 @@ const Subscriptions = () => {
       // Recarregar lista
       await loadSubscriptions();
       setOpenForm(false);
-      enqueueSnackbar('Assinatura criada com sucesso!', { 
-        variant: 'success' 
-      });
+      console.log('Assinatura criada com sucesso!');
     } catch (error) {
       console.error('Erro ao criar assinatura:', error);
-      enqueueSnackbar('Erro ao criar a assinatura. Tente novamente.', { 
-        variant: 'error' 
-      });
+      console.log('Erro ao criar a assinatura. Tente novamente.');
     }
   };
 
   const handleChangePage = (_event: unknown, newPage: number) => {
-    setPage(newPage);
+    setPagination(prev => ({ ...prev, page: newPage + 1 })); // Material-UI usa base 0, nosso backend usa base 1
   };
 
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+    setPagination(prev => ({ ...prev, limit: parseInt(event.target.value, 10), page: 1 })); // Reset to page 1
   };
 
   const handleStatusFilterChange = (_event: React.SyntheticEvent, newValue: string) => {
@@ -270,17 +312,8 @@ const Subscriptions = () => {
     return differenceInDays(end, today);
   };
 
-  // Estatísticas das assinaturas
-  const activeCount = subscriptions.filter(s => s.status === 'ACTIVE').length;
-  const pendingCount = subscriptions.filter(s => s.status === 'PENDING').length;
-  const expiredCount = subscriptions.filter(s => s.status === 'EXPIRED').length;
-  const canceledCount = subscriptions.filter(s => s.status === 'CANCELED').length;
-
-  // Aplicar paginação
-  const displayedSubscriptions = subscriptions.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
+  // Aplicar paginação - não necessário pois já vem paginado do backend
+  const displayedSubscriptions = subscriptions;
 
   return (
     <Container maxWidth="lg">
@@ -310,7 +343,7 @@ const Subscriptions = () => {
                   Assinaturas Ativas
                 </Typography>
                 <Typography variant="h5" component="div" color="success.main">
-                  {activeCount}
+                  {stats.activeCount}
                 </Typography>
               </CardContent>
             </Card>
@@ -322,7 +355,7 @@ const Subscriptions = () => {
                   Assinaturas Pendentes
                 </Typography>
                 <Typography variant="h5" component="div" color="warning.main">
-                  {pendingCount}
+                  {stats.pendingCount}
                 </Typography>
               </CardContent>
             </Card>
@@ -334,7 +367,7 @@ const Subscriptions = () => {
                   Assinaturas Expiradas
                 </Typography>
                 <Typography variant="h5" component="div" color="error.main">
-                  {expiredCount}
+                  {stats.expiredCount}
                 </Typography>
               </CardContent>
             </Card>
@@ -346,7 +379,7 @@ const Subscriptions = () => {
                   Assinaturas Canceladas
                 </Typography>
                 <Typography variant="h5" component="div" color="text.secondary">
-                  {canceledCount}
+                  {stats.canceledCount}
                 </Typography>
               </CardContent>
             </Card>
@@ -477,9 +510,9 @@ const Subscriptions = () => {
                   <TablePagination
                     rowsPerPageOptions={[5, 10, 25]}
                     component="div"
-                    count={subscriptions.length}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
+                    count={pagination.total}
+                    rowsPerPage={pagination.limit}
+                    page={pagination.page - 1} // Material-UI usa base 0, nosso estado usa base 1
                     onPageChange={handleChangePage}
                     onRowsPerPageChange={handleChangeRowsPerPage}
                     labelRowsPerPage="Itens por página"

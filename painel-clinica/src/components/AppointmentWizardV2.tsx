@@ -54,11 +54,13 @@ import { Service } from '../services/serviceService';
 import { Client } from '../services/clientsService';
 import { Subscription } from '../services/subscriptionService';
 import dayjs, { Dayjs } from 'dayjs';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import 'dayjs/locale/pt-br';
 import TherapistAvailabilityGrid from './TherapistAvailabilityGrid';
 import { getTherapistAvailability } from '../services/availabilityService';
 import { useNotification } from './Notification';
+
+// Configurar dayjs para usar pt-br como padrão
+dayjs.locale('pt-br');
 
 interface Therapist {
   id: string;
@@ -144,6 +146,8 @@ const AppointmentWizardV2 = ({
   });
   
   const [activeSubscriptions, setActiveSubscriptions] = useState<Subscription[]>([]);
+  const [selectedTherapistInfo, setSelectedTherapistInfo] = useState<Therapist | null>(null);
+  
   // Reset wizard when opened
   useEffect(() => {
     if (open) {
@@ -158,6 +162,14 @@ const AppointmentWizardV2 = ({
       }
     }
   }, [open, preselectedDate, preselectedTime]);
+  
+  // Update branchId when currentBranch changes
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      branchId: currentBranch?.id || ''
+    }));
+  }, [currentBranch]);
   
   // Update active subscriptions when client changes
   useEffect(() => {
@@ -187,7 +199,7 @@ const AppointmentWizardV2 = ({
     setActiveStep(prev => prev - 1);
   };
   
-  const handleChange = (field: string, value: any) => {
+  const handleChange = (field: keyof FormDataType, value: FormDataType[keyof FormDataType]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
   
@@ -225,13 +237,19 @@ const AppointmentWizardV2 = ({
         clientId: formData.clientId,
         serviceId: formData.serviceId,
         therapistId: formData.therapistId,
-        date: format(formData.date.toDate(), 'yyyy-MM-dd'),
+        date: formData.date.format('YYYY-MM-DD'),
         startTime: formData.time,
         endTime,
         subscriptionId: formData.appointmentType === 'plan' ? formData.subscriptionId : undefined,
         notes: formData.notes || undefined,
         branchId: formData.branchId
       };
+      
+      console.log('AppointmentWizardV2 - handleSubmit - formData.date (dayjs):', formData.date.toString());
+      console.log('AppointmentWizardV2 - handleSubmit - formData.date.format:', formData.date.format('YYYY-MM-DD'));
+      console.log('AppointmentWizardV2 - handleSubmit - Dados finais:', appointmentData);
+      console.log('AppointmentWizardV2 - handleSubmit - currentBranch:', currentBranch);
+      console.log('AppointmentWizardV2 - handleSubmit - formData.branchId:', formData.branchId);
       
       await onSave(appointmentData);
       showNotification('Agendamento criado com sucesso!', 'success');
@@ -288,7 +306,7 @@ const AppointmentWizardV2 = ({
             <InputLabel>Selecione o Cliente</InputLabel>
             <Select
               value={formData.clientId}
-              onChange={(e) => handleChange('clientId', e.target.value)}
+              onChange={(e) => handleChange('clientId', e.target.value as string)}
               label="Selecione o Cliente"
             >
               {clients.map(client => (
@@ -327,7 +345,7 @@ const AppointmentWizardV2 = ({
               <RadioGroup
                 row
                 value={formData.appointmentType}
-                onChange={(e) => handleChange('appointmentType', e.target.value)}
+                onChange={(e) => handleChange('appointmentType', e.target.value as 'plan' | 'single')}
                 sx={{ gap: 2 }}
               >
                 <Paper
@@ -390,7 +408,7 @@ const AppointmentWizardV2 = ({
                   <InputLabel>Selecione o Plano</InputLabel>
                   <Select
                     value={formData.subscriptionId}
-                    onChange={(e) => handleChange('subscriptionId', e.target.value)}
+                    onChange={(e) => handleChange('subscriptionId', e.target.value as string)}
                     label="Selecione o Plano"
                   >
                     {activeSubscriptions.map(sub => (
@@ -436,7 +454,7 @@ const AppointmentWizardV2 = ({
                 key={service.id}
                 button
                 selected={formData.serviceId === service.id}
-                onClick={() => handleChange('serviceId', service.id)}
+                onClick={() => handleChange('serviceId', service.id as string)}
                 sx={{
                   mb: 1,
                   border: '1px solid',
@@ -511,8 +529,9 @@ const AppointmentWizardV2 = ({
           {formData.date && (
             <TherapistAvailabilityGrid
               therapists={therapists}
-              selectedDate={format(formData.date.toDate(), 'yyyy-MM-dd')}
+              selectedDate={formData.date.format('YYYY-MM-DD')}
               selectedService={services.find(s => s.id === formData.serviceId)}
+              branchId={formData.branchId}
               onSelectTherapist={handleTherapistSelect}
               getAvailability={getTherapistAvailability}
               loading={loadingAvailability}
@@ -525,7 +544,7 @@ const AppointmentWizardV2 = ({
             multiline
             rows={3}
             value={formData.notes}
-            onChange={(e) => handleChange('notes', e.target.value)}
+            onChange={(e) => handleChange('notes', e.target.value as string)}
             sx={{ mt: 3 }}
           />
         </Box>
@@ -587,7 +606,7 @@ const AppointmentWizardV2 = ({
               </ListItemAvatar>
               <ListItemText
                 primary="Data e Horário"
-                secondary={`${format(formData.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })} às ${formData.time}`}
+                secondary={`${formData.date.locale('pt-br').format('DD [de] MMMM [de] YYYY')} às ${formData.time}`}
               />
             </ListItem>
             

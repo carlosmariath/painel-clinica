@@ -2,29 +2,25 @@ import api from "../api";
 
 const ENDPOINT = "/appointments";
 
-// 🔹 Buscar TODOS os agendamentos (Admin)
-export const getAllAppointments = async (branchId?: string) => {
+// 🔹 Buscar TODOS os agendamentos (Admin) com paginação
+export const getAllAppointments = async (
+  branchId?: string, 
+  page: number = 1, 
+  limit: number = 50
+): Promise<{ data: any[]; total: number; page: number; limit: number; totalPages: number }> => {
   try {
-    // Usar a rota de calendário com intervalo amplo para cobrir todos os agendamentos
-    // Cria data inicial (1 ano atrás) e data final (1 ano à frente)
-    const startDate = new Date();
-    startDate.setFullYear(startDate.getFullYear() - 1);
+    const params: { branchId?: string; page: string; limit: string } = { 
+      page: page.toString(), 
+      limit: limit.toString() 
+    };
     
-    const endDate = new Date();
-    endDate.setFullYear(endDate.getFullYear() + 1);
+    if (branchId) {
+      params.branchId = branchId;
+    }
     
-    // Formatar as datas como YYYY-MM-DD
-    const start = startDate.toISOString().split('T')[0];
-    const end = endDate.toISOString().split('T')[0];
+    console.log(`Buscando agendamentos paginados - página ${page}, limite ${limit}${branchId ? ` para filial ${branchId}` : ''}`);
     
-    // Montar os parâmetros
-    const params: { start: string; end: string; branchId?: string } = { start, end };
-    if (branchId) params.branchId = branchId;
-    
-    console.log(`Buscando agendamentos entre ${start} e ${end}${branchId ? ` para filial ${branchId}` : ''}`);
-    
-    // Usar a rota de calendário que está funcionando
-    const response = await api.get(`${ENDPOINT}/calendar`, { params });
+    const response = await api.get(ENDPOINT, { params });
     return response.data;
   } catch (error) {
     console.error("Erro ao buscar agendamentos:", error);
@@ -59,6 +55,7 @@ export const createAppointment = async (appointmentData: {
   couponCode?: string;
   autoSchedule?: boolean;
 }) => {
+  console.log('createAppointment (frontend) - Dados enviados:', appointmentData);
   return api.post(ENDPOINT, appointmentData);
 };
 

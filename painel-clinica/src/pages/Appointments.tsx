@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   Box,
   Typography,
@@ -15,12 +15,9 @@ import {
   Grid,
   Tabs,
   Tab,
-  Toolbar,
   IconButton,
   Paper,
-  CircularProgress,
   Container,
-  Chip,
   FormControl,
   InputLabel,
   Select,
@@ -30,8 +27,20 @@ import {
   Tooltip,
   Fade
 } from "@mui/material";
-import AppointmentForm from "../components/AppointmentForm";
-import AppointmentWizardV2 from "../components/AppointmentWizardV2";
+import {
+  CalendarMonth,
+  Add as AddIcon,
+  Refresh,
+  Schedule,
+  CheckCircle,
+  Cancel,
+  WarningAmber,
+  FilterList,
+  ViewList,
+  ViewKanban
+} from "@mui/icons-material";
+import { startOfWeek, addDays, addWeeks, format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { getAllAppointments, deleteAppointment, createAppointment } from "../services/appointmentService";
 import { getClients } from "../services/clientsService";
 import { getTherapists } from "../services/threapistService";
@@ -42,38 +51,8 @@ import AppointmentList from './AppointmentList';
 import KanbanCalendar from '../components/KanbanCalendar';
 import { BranchContext } from "../context/BranchContext";
 import { subscriptionService, Subscription } from '../services/subscriptionService';
-import { format, startOfWeek, addWeeks, addDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Add as AddIcon, ChevronLeft, ChevronRight, CalendarMonth, FilterList, Refresh, CheckCircle, Cancel, Schedule, WarningAmber } from '@mui/icons-material';
-import { useTheme } from '@mui/material/styles';
-
-// Definindo uma interface para os tipos de visualização
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`appointment-tabpanel-${index}`}
-      aria-labelledby={`appointment-tab-${index}`}
-      {...other}
-      style={{ width: '100%' }}
-    >
-      {value === index && (
-        <Box sx={{ p: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
+import AppointmentForm from "../components/AppointmentForm";
+import AppointmentWizardV2 from "../components/AppointmentWizardV2";
 
 // Interface para o objeto de agendamento
 interface AppointmentData {
@@ -98,9 +77,9 @@ const Appointments = () => {
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<any>(null);
-  const [tabValue, setTabValue] = useState(1); // Definindo o calendário como padrão (índice 1)
+  const [tabValue, setTabValue] = useState(0); // 0 = Lista, 1 = Kanban
   
-  // Estados para navegação do calendário
+  // Estados para navegação do calendário Kanban
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   
   // Estados para o novo fluxo de agendamento
@@ -134,7 +113,7 @@ const Appointments = () => {
   const [openEventModal, setOpenEventModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const theme = useTheme();
+
 
   useEffect(() => {
     fetchData();
@@ -153,12 +132,16 @@ const Appointments = () => {
     const fetchActiveSubscriptions = async () => {
       try {
         setLoadingSubscriptions(true);
-        const activeSubscriptions = await subscriptionService.getSubscriptions(
+        const response = await subscriptionService.getSubscriptions(
           undefined, 
           'ACTIVE',
           branchContext?.currentBranch?.id
         );
-        setClientSubscriptions(activeSubscriptions);
+        
+        // Extrair dados do formato paginado
+        const subscriptionsData = response.data || response;
+        
+        setClientSubscriptions(subscriptionsData);
       } catch (error) {
         console.error('Erro ao carregar assinaturas ativas:', error);
       } finally {
@@ -172,11 +155,15 @@ const Appointments = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [appointmentsData, clientsData, therapistsData] = await Promise.all([
+      const [appointmentsResponse, clientsData, therapistsData] = await Promise.all([
         getAllAppointments(filters.branchId),
         getClients(),
         getTherapists(),
       ]);
+      
+      // Extrair dados do formato paginado
+      const appointmentsData = appointmentsResponse.data || appointmentsResponse;
+      
       setAppointments(appointmentsData);
       setClients(clientsData);
       setTherapists(therapistsData);
@@ -355,6 +342,13 @@ const Appointments = () => {
     handleOpenWizard(formattedDate, startTime);
   };
 
+  // Manipulador de clique em um agendamento no Kanban
+  const handleKanbanAppointmentClick = (appointment: any) => {
+    console.log('Appointments - handleKanbanAppointmentClick chamado com:', appointment);
+    setSelectedEvent(appointment);
+    setOpenEventModal(true);
+  };
+
   // Funções para navegação do calendário
   const prevWeek = () => setWeekStart(prev => addWeeks(prev, -1));
   const nextWeek = () => setWeekStart(prev => addWeeks(prev, 1));
@@ -373,8 +367,12 @@ const Appointments = () => {
       } else {
         setLoading(true);
       }
-      const data = await getAllAppointments(filters.branchId);
-      setAppointments(data);
+      const response = await getAllAppointments(filters.branchId);
+      
+      // Extrair dados do formato paginado
+      const appointmentsData = response.data || response;
+      
+      setAppointments(appointmentsData);
       if (showRefreshIndicator) {
         showNotification("Dados atualizados com sucesso", "success");
       }
@@ -528,89 +526,181 @@ const Appointments = () => {
           </Grid>
         </Fade>
 
-        {/* Filters */}
-        <Paper sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <FilterList color="action" />
-            
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={filters.status}
-                label="Status"
-                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              >
-                <MenuItem value="all">Todos</MenuItem>
-                <MenuItem value="SCHEDULED">Agendados</MenuItem>
-                <MenuItem value="CONFIRMED">Confirmados</MenuItem>
-                <MenuItem value="CANCELED">Cancelados</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <TextField
-              size="small"
-              type="date"
-              label="Data"
-              value={filters.date}
-              onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 150 }}
+        {/* Tabs de Visualização */}
+        <Paper sx={{ mb: 3 }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={handleTabChange}
+            indicatorColor="primary"
+            textColor="primary"
+            centered
+          >
+            <Tab 
+              icon={<ViewList />} 
+              label="Lista" 
+              iconPosition="start"
+              sx={{ minHeight: 48 }}
             />
-            
-                         <Button 
-              size="small" 
-              onClick={() => setFilters({ ...filters, status: 'all', date: '', therapist: 'all' })}
-              disabled={filters.status === 'all' && !filters.date}
-            >
-              Limpar Filtros
-            </Button>
-          </Box>
+            <Tab 
+              icon={<ViewKanban />} 
+              label="Kanban" 
+              iconPosition="start"
+              sx={{ minHeight: 48 }}
+            />
+          </Tabs>
         </Paper>
+
+        {/* Navegação do Kanban (somente na aba Kanban) */}
+        {tabValue === 1 && (
+          <Paper sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Button 
+                variant="outlined" 
+                onClick={prevWeek}
+                size="small"
+              >
+                ← Semana Anterior
+              </Button>
+              
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="h6" fontWeight={600}>
+                  {formatWeekRange(weekStart)}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
+                  variant="outlined" 
+                  onClick={goToday}
+                  size="small"
+                >
+                  Hoje
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  onClick={nextWeek}
+                  size="small"
+                >
+                  Próxima Semana →
+                </Button>
+              </Box>
+            </Box>
+          </Paper>
+        )}
+
+        {/* Filtros (somente na aba Lista) */}
+        {tabValue === 0 && (
+          <Paper sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <FilterList color="action" />
+              
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={filters.status}
+                  label="Status"
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                >
+                  <MenuItem value="all">Todos</MenuItem>
+                  <MenuItem value="SCHEDULED">Agendados</MenuItem>
+                  <MenuItem value="CONFIRMED">Confirmados</MenuItem>
+                  <MenuItem value="CANCELED">Cancelados</MenuItem>
+                </Select>
+              </FormControl>
+              
+              <TextField
+                size="small"
+                type="date"
+                label="Data"
+                value={filters.date}
+                onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 150 }}
+              />
+              
+              <Button 
+                size="small" 
+                onClick={() => setFilters({ ...filters, status: 'all', date: '', therapist: 'all' })}
+                disabled={filters.status === 'all' && !filters.date}
+              >
+                Limpar Filtros
+              </Button>
+            </Box>
+          </Paper>
+        )}
       </Box>
 
-      {/* Appointments List with Loading States */}
+      {/* Conteúdo baseado na aba selecionada */}
       <Box>
-        {loading ? (
-          <Box>
-            {[1, 2, 3, 4].map((i) => (
-              <AppointmentSkeleton key={i} />
-            ))}
-          </Box>
-        ) : appointments.length === 0 ? (
-          <Paper sx={{ p: 4, textAlign: 'center', bgcolor: 'grey.50' }}>
-            <WarningAmber sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              Nenhum agendamento encontrado
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Clique no botão "Novo Agendamento" para criar o primeiro
-            </Typography>
-            <Button 
-              variant="contained" 
-              startIcon={<AddIcon />}
-              onClick={() => handleOpenWizard()}
-            >
-              Criar Agendamento
-            </Button>
-          </Paper>
+        {tabValue === 0 ? (
+          // Vista de Lista
+          <>
+            {loading ? (
+              <Box>
+                {[1, 2, 3, 4].map((i) => (
+                  <AppointmentSkeleton key={i} />
+                ))}
+              </Box>
+            ) : appointments.length === 0 ? (
+              <Paper sx={{ p: 4, textAlign: 'center', bgcolor: 'grey.50' }}>
+                <WarningAmber sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  Nenhum agendamento encontrado
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  Clique no botão "Novo Agendamento" para criar o primeiro
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddIcon />}
+                  onClick={() => handleOpenWizard()}
+                >
+                  Criar Agendamento
+                </Button>
+              </Paper>
+            ) : (
+              <Fade in={!loading} timeout={800}>
+                <Box>
+                  <AppointmentList 
+                    appointments={appointments}
+                    loading={loading}
+                    therapists={therapists}
+                    clients={clients}
+                    onEdit={handleOpenForm}
+                    onDelete={handleDelete}
+                    filters={filters}
+                    onFilterChange={handleFilterChange}
+                    onSelectChange={handleSelectChange}
+                    onBranchChange={handleBranchChange}
+                    onResetFilters={resetFilters}
+                  />
+                </Box>
+              </Fade>
+            )}
+          </>
         ) : (
-          <Fade in={!loading} timeout={800}>
-            <Box>
-              <AppointmentList 
+          // Vista Kanban
+          <Box sx={{ height: '600px', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <Box>
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} variant="rectangular" width="100%" height={60} sx={{ mb: 1 }} />
+                  ))}
+                </Box>
+              </Box>
+            ) : (
+              <KanbanCalendar
                 appointments={appointments}
-                loading={loading}
-                therapists={therapists}
-                clients={clients}
-                onEdit={handleOpenForm}
-                onDelete={handleDelete}
-                filters={filters}
-                onFilterChange={handleFilterChange}
-                onSelectChange={handleSelectChange}
-                onBranchChange={handleBranchChange}
-                onResetFilters={resetFilters}
+                weekStart={weekStart}
+                onSlotClick={handleCalendarSlotClick}
+                onAppointmentClick={handleKanbanAppointmentClick}
+                startHour={8}
+                endHour={18}
+                hourStep={60}
               />
-            </Box>
-          </Fade>
+            )}
+          </Box>
         )}
       </Box>
 

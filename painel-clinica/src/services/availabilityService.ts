@@ -78,18 +78,44 @@ export const getTherapistAvailability = async (
   branchId?: string
 ): Promise<TherapistAvailability> => {
   try {
-    const params = new URLSearchParams({
+    // Usar a rota específica do terapeuta para obter disponibilidade real
+    const params: Record<string, string> = { date };
+    if (branchId) params.branchId = branchId;
+    
+    const response = await api.get(`/therapists/${therapistId}/availability`, { params });
+    
+    const { available, slots = [], workHours = [], reason } = response.data;
+    
+    // Se não está disponível, retornar slots vazios e sem workSchedule
+    if (!available) {
+      return {
+        therapistId,
+        date,
+        availableSlots: [],
+        busySlots: [],
+        workSchedule: undefined // Não definir workSchedule quando não há disponibilidade
+      };
+    }
+    
+    // Se há múltiplos horários de trabalho, pegar o primeiro
+    const workSchedule = workHours.length > 0 ? workHours[0] : { start: '08:00', end: '18:00' };
+    
+    return {
       therapistId,
       date,
-      ...(serviceId && { serviceId }),
-      ...(branchId && { branchId })
-    });
-
-    const response = await api.get(`/appointments/availability?${params.toString()}`);
-    return response.data;
+      availableSlots: slots,
+      busySlots: [],
+      workSchedule
+    };
   } catch (error) {
-    console.error('Erro ao buscar disponibilidade do terapeuta:', error);
-    throw error;
+    // Em caso de erro, retornar estrutura vazia
+    return {
+      therapistId,
+      date,
+      availableSlots: [],
+      busySlots: [],
+      workSchedule: undefined // Não definir workSchedule em caso de erro
+    };
   }
 };
 
@@ -111,7 +137,6 @@ export const getDetailedAvailableSlots = async (
     const response = await api.get(`/appointments/availability/slots?${params.toString()}`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao buscar slots disponíveis:', error);
     throw error;
   }
 };
@@ -134,7 +159,6 @@ export const getMultipleTherapistsAvailability = async (
       .filter(result => result.status === 'fulfilled')
       .map(result => (result as PromiseFulfilledResult<TherapistAvailability>).value);
   } catch (error) {
-    console.error('Erro ao buscar disponibilidade de múltiplos terapeutas:', error);
     throw error;
   }
 };
@@ -159,7 +183,6 @@ export const getNextAvailableDates = async (
     const response = await api.get(`/appointments/availability/next-dates?${params.toString()}`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao buscar próximas datas disponíveis:', error);
     throw error;
   }
 };
@@ -186,7 +209,6 @@ export const checkSlotAvailability = async (
     const response = await api.get(`/appointments/availability/check?${params.toString()}`);
     return response.data.available;
   } catch (error) {
-    console.error('Erro ao verificar disponibilidade do slot:', error);
     throw error;
   }
 };
@@ -213,7 +235,77 @@ export const getSuggestedSlots = async (
     const response = await api.get(`/appointments/availability/suggestions?${params.toString()}`);
     return response.data;
   } catch (error) {
-    console.error('Erro ao buscar sugestões de horários:', error);
+    throw error;
+  }
+};
+
+// Buscar disponibilidade de um terapeuta em todas as filiais
+export const getTherapistAvailabilityAcrossBranches = async (
+  therapistId: string,
+  date: string
+): Promise<{
+  therapistId: string;
+  date: string;
+  branches: Array<{
+    branchId: string;
+    branchName: string;
+    available: boolean;
+    slots: string[];
+    workHours: Array<{ start: string; end: string }>;
+  }>;
+}> => {
+  try {
+    const response = await api.get(`/therapists/${therapistId}/availability/all-branches`, {
+      params: { date }
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+const ENDPOINT = "/therapists";
+
+// Verificar conflitos entre horários em filiais diferentes
+export const checkScheduleConflicts = async (
+  therapistId: string, 
+  scheduleData: {
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    branchId: string;
+    id?: string;
+  }
+) => {
+  try {
+    const response = await api.post(
+      `${ENDPOINT}/${therapistId}/schedule/check-conflicts`,
+      scheduleData
+    );
+    return response.data;
+  } catch (error: unknown) {
+    return { hasConflict: false }; // Em caso de erro, assumimos que não há conflito
+  }
+};
+
+// Obter a disponibilidade detalhada de um terapeuta em uma filial específica
+export const getDetailedTherapistAvailability = async (
+  therapistId: string,
+  date: string,
+  branchId?: string
+): Promise<{
+  available: boolean;
+  reason?: string;
+  slots: string[];
+  workHours?: Array<{ start: string; end: string }>;
+}> => {
+  try {
+    const params: Record<string, string> = { date };
+    if (branchId) params.branchId = branchId;
+
+    const response = await api.get(`/therapists/${therapistId}/availability`, { params });
+    return response.data;
+  } catch (error) {
     throw error;
   }
 }; 

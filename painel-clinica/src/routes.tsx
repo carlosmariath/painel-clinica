@@ -7,7 +7,6 @@ import Appointments from "./pages/Appointments";
 import Clients from "./pages/Clients";
 import Therapists from "./pages/Therapists";
 import { JSX } from "react";
-import TherapistSchedule from "./pages/TherapistSchedule";
 import TimeGridCalendarPage from "./pages/TimeGridCalendarPage";
 import KnowledgeEntries from "./pages/KnowledgeEntries";
 import Categories from "./pages/Categories";
@@ -20,6 +19,7 @@ import Roles from "./pages/Roles";
 import TherapyPlans from './pages/TherapyPlans';
 import Subscriptions from './pages/Subscriptions';
 import Finance from './pages/Finance';
+import TherapistAvailability from './pages/TherapistAvailability';
 
 import TherapyPlanDetails from './pages/TherapyPlanDetails';
 
@@ -52,7 +52,7 @@ const AppRoutes = () => {
           <Route path="/appointments" element={<Appointments />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/therapists" element={<Therapists />} />
-          <Route path="/therapist-schedule" element={<TherapistSchedule />} />
+          <Route path="/therapist-availability" element={<TherapistAvailability />} />
           <Route path="/calendar" element={<TimeGridCalendarPage />} />
           <Route path="/appointment-calendar" element={<AppointmentCalendar />} />
           <Route path="/branches" element={

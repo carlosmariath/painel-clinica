@@ -45,13 +45,15 @@ export interface CreateSubscriptionDTO {
  */
 export const subscriptionService = {
   /**
-   * Busca todas as assinaturas, com filtros opcionais
+   * Busca todas as assinaturas, com filtros opcionais e paginação
    */
   getSubscriptions: async (
     clientId?: string,
     status?: string,
-    branchId?: string | string[]
-  ): Promise<Subscription[]> => {
+    branchId?: string | string[],
+    page: number = 1,
+    limit: number = 20
+  ): Promise<{ data: Subscription[]; total: number; page: number; limit: number; totalPages: number }> => {
     try {
       const params = new URLSearchParams();
       
@@ -74,10 +76,14 @@ export const subscriptionService = {
         }
       }
       
+      // Adicionar parâmetros de paginação
+      params.append('page', page.toString());
+      params.append('limit', limit.toString());
+      
       const queryString = params.toString();
       const endpoint = `/subscriptions${queryString ? `?${queryString}` : ''}`;
       
-      console.log(`Buscando assinaturas: ${endpoint}`);
+      console.log(`Buscando assinaturas paginadas: ${endpoint}`);
       const response = await api.get(endpoint);
       
       return response.data;

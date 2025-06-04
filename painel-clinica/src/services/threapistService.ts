@@ -68,10 +68,12 @@ export const updateTherapistSchedule = async (
     dayOfWeek: number; 
     startTime: string; 
     endTime: string;
-    branchId: string; 
+    branchId: string;
+    id?: string; // ID opcional para edição
   }
 ) => {
-  return api.post(`${ENDPOINT}/me/schedule`, schedule);
+  const response = await api.post(`${ENDPOINT}/me/schedule`, schedule);
+  return response.data;
 };
 
 // 🔹 Atualizar a disponibilidade de um terapeuta específico (para admins)
@@ -81,10 +83,12 @@ export const updateTherapistScheduleById = async (
     dayOfWeek: number; 
     startTime: string; 
     endTime: string;
-    branchId: string; 
+    branchId: string;
+    id?: string; // ID opcional para edição 
   }
 ) => {
-  return api.post(`${ENDPOINT}/${therapistId}/schedule`, schedule);
+  const response = await api.post(`${ENDPOINT}/${therapistId}/schedule`, schedule);
+  return response.data;
 };
 
 // 🔹 Remover um horário de disponibilidade específico
@@ -110,11 +114,63 @@ export const getTherapistBranches = async (therapistId: string) => {
 
 // 🔹 Buscar todos os horários de um terapeuta (em todas as filiais)
 export const getAllTherapistSchedules = async (therapistId?: string) => {
-  // Se não passar therapistId, pega do terapeuta logado
-  const endpoint = therapistId 
-    ? `${ENDPOINT}/${therapistId}/schedules/all` 
-    : `${ENDPOINT}/me/schedules/all`;
-  
-  const response = await api.get(endpoint);
-  return response.data;
+  try {
+    // Se não passar therapistId, pega do terapeuta logado
+    const endpoint = therapistId 
+      ? `${ENDPOINT}/${therapistId}/schedules/all` 
+      : `${ENDPOINT}/me/schedules/all`;
+    
+    const response = await api.get(endpoint);
+    
+    // Garantir que os dados retornados são consistentes
+    const schedules = response.data || [];
+    
+    // Verificar se os dados já estão organizados por filial
+    if (Array.isArray(schedules)) {
+      // Se for um array simples, retorna como está
+      return schedules;
+    } else {
+      // Se for um objeto complexo, tenta extrair os horários
+      return schedules.schedules || schedules.data || [];
+    }
+  } catch (error) {
+    console.error("Erro ao buscar horários:", error);
+    return []; // Retorna array vazio em caso de erro
+  }
+};
+
+// 🔹 Remover um horário de um terapeuta
+export const removeTherapistSchedule = async (therapistId: string, scheduleId: string) => {
+  try {
+    const response = await api.delete(`${ENDPOINT}/${therapistId}/schedule/${scheduleId}`);
+    return response.data;
+  } catch (error: unknown) {
+    // Se o erro for 404 (horário não encontrado), retornamos um objeto específico
+    const err = error as { response?: { status?: number } };
+    if (err.response && err.response.status === 404) {
+      return { success: false, message: 'Horário não encontrado' };
+    }
+    
+    // Para outros erros, lançamos o erro para que o componente possa lidar com ele
+    throw error;
+  }
+};
+
+// 🔹 Remover todos os horários de um terapeuta em uma filial específica
+export const removeAllTherapistSchedulesFromBranch = async (therapistId: string, branchId: string) => {
+  try {
+    const response = await api.delete(`${ENDPOINT}/${therapistId}/schedule/branch/${branchId}`);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { status?: number; data?: any } };
+    if (err.response && err.response.status === 404) {
+      return { deleted: 0, message: 'Não foram encontrados horários para excluir' };
+    }
+    
+    if (err.response && err.response.data && err.response.data.message) {
+      throw new Error(err.response.data.message);
+    }
+    
+    throw error;
+  }
 };
