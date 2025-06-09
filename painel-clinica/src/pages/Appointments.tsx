@@ -37,8 +37,20 @@ import {
   WarningAmber,
   FilterList,
   ViewList,
-  ViewKanban
+  ViewKanban,
+  Person,
+  MedicalServices,
+  Business,
+  Notes,
+  Info,
+  Phone,
+  Email,
+  Edit,
+  AttachMoney,
+  AccessTime,
+  QrCode2
 } from "@mui/icons-material";
+import { Avatar } from "@mui/material";
 import { startOfWeek, addDays, addWeeks, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { getAllAppointments, deleteAppointment, createAppointment } from "../services/appointmentService";
@@ -53,6 +65,7 @@ import { BranchContext } from "../context/BranchContext";
 import { subscriptionService, Subscription } from '../services/subscriptionService';
 import AppointmentForm from "../components/AppointmentForm";
 import AppointmentWizardV2 from "../components/AppointmentWizardV2";
+import AppointmentEditModal from "../components/AppointmentEditModal";
 
 // Interface para o objeto de agendamento
 interface AppointmentData {
@@ -74,6 +87,7 @@ const Appointments = () => {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
+  const [openEditModal, setOpenEditModal] = useState(false);
   const [openConfirm, setOpenConfirm] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<any>(null);
@@ -107,7 +121,7 @@ const Appointments = () => {
     therapist: 'all'
   });
 
-  const [filteredAppointments, setFilteredAppointments] = useState<any[]>([]);
+  // const [filteredAppointments, setFilteredAppointments] = useState<any[]>([]);
   const { showNotification } = useNotification();
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [openEventModal, setOpenEventModal] = useState(false);
@@ -123,9 +137,9 @@ const Appointments = () => {
     getBranches().then(() => {}).catch(console.error);
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [filters, appointments]);
+  // useEffect(() => {
+  //   applyFilters();
+  // }, [filters, appointments]);
 
   useEffect(() => {
     // Carregar assinaturas ativas quando o componente for montado
@@ -177,11 +191,31 @@ const Appointments = () => {
 
   const handleOpenForm = (appointment = null) => {
     setSelectedAppointment(appointment);
-    setOpenForm(true);
+    if (appointment) {
+      setOpenEditModal(true);
+    } else {
+      setOpenForm(true);
+    }
   };
 
   const handleCloseForm = () => {
     setOpenForm(false);
+    setSelectedAppointment(null);
+  };
+
+  const handleCloseEditModal = () => {
+    setOpenEditModal(false);
+    setSelectedAppointment(null);
+  };
+
+  const handleSaveAppointmentEdit = (updatedAppointment: any) => {
+    // Atualizar a lista de agendamentos
+    setAppointments(prev => 
+      prev.map(apt => 
+        apt.id === updatedAppointment.id ? updatedAppointment : apt
+      )
+    );
+    setOpenEditModal(false);
     setSelectedAppointment(null);
   };
 
@@ -231,45 +265,45 @@ const Appointments = () => {
     setFilters({ ...filters, branchId: branchId || "" });
   };
 
-  const applyFilters = () => {
-    let filtered = [...appointments];
+  // const applyFilters = () => {
+  //   let filtered = [...appointments];
 
-    if (filters.clientId) {
-      filtered = filtered.filter(app => app.clientId === filters.clientId);
-    }
+  //   if (filters.clientId) {
+  //     filtered = filtered.filter(app => app.clientId === filters.clientId);
+  //   }
 
-    if (filters.therapistId) {
-      filtered = filtered.filter(app => app.therapistId === filters.therapistId);
-    }
+  //   if (filters.therapistId) {
+  //     filtered = filtered.filter(app => app.therapistId === filters.therapistId);
+  //   }
 
-    if (filters.branchId) {
-      filtered = filtered.filter(app => app.branchId === filters.branchId);
-    }
+  //   if (filters.branchId) {
+  //     filtered = filtered.filter(app => app.branchId === filters.branchId);
+  //   }
 
-    if (filters.startDate) {
-      filtered = filtered.filter(app => new Date(app.date) >= new Date(filters.startDate));
-    }
+  //   if (filters.startDate) {
+  //     filtered = filtered.filter(app => new Date(app.date) >= new Date(filters.startDate));
+  //   }
 
-    if (filters.endDate) {
-      filtered = filtered.filter(app => new Date(app.date) <= new Date(filters.endDate));
-    }
+  //   if (filters.endDate) {
+  //     filtered = filtered.filter(app => new Date(app.date) <= new Date(filters.endDate));
+  //   }
 
-    if (filters.searchTerm) {
-      const searchTermLower = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(app => {
-        const clientName = app.client?.name.toLowerCase() || '';
-        const therapistName = app.therapist?.name.toLowerCase() || '';
-        const serviceName = app.service?.name.toLowerCase() || '';
-        return (
-          clientName.includes(searchTermLower) ||
-          therapistName.includes(searchTermLower) ||
-          serviceName.includes(searchTermLower)
-        );
-      });
-    }
+  //   if (filters.searchTerm) {
+  //     const searchTermLower = filters.searchTerm.toLowerCase();
+  //     filtered = filtered.filter(app => {
+  //       const clientName = app.client?.name.toLowerCase() || '';
+  //       const therapistName = app.therapist?.name.toLowerCase() || '';
+  //       const serviceName = app.service?.name.toLowerCase() || '';
+  //       return (
+  //         clientName.includes(searchTermLower) ||
+  //         therapistName.includes(searchTermLower) ||
+  //         serviceName.includes(searchTermLower)
+  //       );
+  //     });
+  //   }
 
-    setFilteredAppointments(filtered);
-  };
+  //   // setFilteredAppointments(filtered);
+  // };
 
   const resetFilters = () => {
     setFilters({
@@ -704,12 +738,20 @@ const Appointments = () => {
         )}
       </Box>
 
-      {/* Appointment Form */}
+      {/* Appointment Form - Simple */}
       <AppointmentForm 
         open={openForm}
         onClose={handleCloseForm}
         onSave={fetchData}
         appointment={selectedAppointment}
+      />
+
+      {/* Advanced Edit Modal */}
+      <AppointmentEditModal
+        open={openEditModal}
+        appointment={selectedAppointment}
+        onClose={handleCloseEditModal}
+        onSave={handleSaveAppointmentEdit}
       />
 
       {/* Novo wizard de agendamento melhorado */}
@@ -747,65 +789,389 @@ const Appointments = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Modal de detalhes do evento do calendário */}
-      <Dialog open={openEventModal} onClose={() => setOpenEventModal(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Detalhes do Agendamento</DialogTitle>
-        <DialogContent>
-          {selectedEvent && (() => {
-            // Normalizar dados dependendo se vem do FullCalendar (extendedProps) ou Kanban (direto)
-            const eventData = selectedEvent.extendedProps || selectedEvent;
-            const originalAppointment = eventData.originalAppointment || selectedEvent;
-            
-            return (
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <Typography variant="h6">
-                    {eventData.client?.name || 'Cliente não informado'}
-                  </Typography>
-                  <Typography variant="subtitle1" color="textSecondary">
-                    {eventData.service?.name || 'Serviço não informado'} | 
-                    {eventData.date && format(new Date(eventData.date), 'dd/MM/yyyy', { locale: ptBR })} às {eventData.startTime}
-                  </Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2">Terapeuta</Typography>
-                  <Typography>{eventData.therapist?.name || 'Não informado'}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2">Status</Typography>
-                  <Typography>{eventData.status === 'CONFIRMED' ? 'Confirmado' : 
-                              eventData.status === 'CANCELED' ? 'Cancelado' : 
-                              eventData.status === 'PENDING' ? 'Pendente' : 
-                              eventData.status}</Typography>
-                </Grid>
-                {eventData.notes && (
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2">Observações</Typography>
-                    <Typography>{eventData.notes}</Typography>
+      {/* Modal de detalhes do evento do calendário - Versão melhorada */}
+      <Dialog 
+        open={openEventModal} 
+        onClose={() => setOpenEventModal(false)} 
+        maxWidth="md" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden'
+          }
+        }}
+      >
+        {selectedEvent && (() => {
+          // Normalizar dados dependendo se vem do FullCalendar (extendedProps) ou Kanban (direto)
+          const eventData = selectedEvent.extendedProps || selectedEvent;
+                      // const originalAppointment = eventData.originalAppointment || selectedEvent;
+          
+          // Função para obter cor do status
+          const getStatusColor = (status: string) => {
+            switch (status) {
+              case 'CONFIRMED': return { bg: '#e8f5e8', color: '#2e7d32', icon: '✓' };
+              case 'PENDING': return { bg: '#fff3e0', color: '#f57c00', icon: '⏱' };
+              case 'CANCELED': return { bg: '#ffebee', color: '#d32f2f', icon: '✕' };
+              default: return { bg: '#f5f5f5', color: '#757575', icon: '?' };
+            }
+          };
+
+          const statusInfo = getStatusColor(eventData.status);
+          
+          return (
+            <>
+              {/* Header com gradiente e informações principais */}
+              <Box sx={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                p: 3,
+                position: 'relative'
+              }}>
+                <IconButton
+                  onClick={() => setOpenEventModal(false)}
+                  sx={{ 
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    color: 'white',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }
+                  }}
+                >
+                  <Cancel />
+                </IconButton>
+                
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <Avatar sx={{ 
+                    bgcolor: 'rgba(255,255,255,0.2)', 
+                    color: 'white',
+                    width: 56,
+                    height: 56,
+                    fontSize: '1.5rem'
+                  }}>
+                    {eventData.client?.name?.charAt(0) || 'C'}
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h5" fontWeight={600}>
+                      {eventData.client?.name || 'Cliente não informado'}
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ opacity: 0.9 }}>
+                      {eventData.service?.name || 'Serviço não informado'}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* Status Badge */}
+                <Box sx={{ 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  bgcolor: statusInfo.bg,
+                  color: statusInfo.color,
+                  px: 2,
+                  py: 0.5,
+                  borderRadius: 3,
+                  fontWeight: 600,
+                  fontSize: '0.875rem'
+                }}>
+                  <span>{statusInfo.icon}</span>
+                  {eventData.status === 'CONFIRMED' ? 'Confirmado' : 
+                   eventData.status === 'CANCELED' ? 'Cancelado' : 
+                   eventData.status === 'PENDING' ? 'Pendente' : 
+                   eventData.status}
+                </Box>
+              </Box>
+
+              <DialogContent sx={{ p: 0 }}>
+                <Grid container>
+                  {/* Informações principais */}
+                  <Grid item xs={12} md={8}>
+                    <Box sx={{ p: 3 }}>
+                      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+                        <Schedule color="primary" />
+                        Detalhes do Agendamento
+                      </Typography>
+
+                      <Grid container spacing={3}>
+                        {/* Data e Horário */}
+                        <Grid item xs={12} sm={6} md={4}>
+                          <Box sx={{ 
+                            p: 2, 
+                            bgcolor: 'primary.50', 
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'primary.200',
+                            height: '100%'
+                          }}>
+                            <Typography variant="subtitle2" color="primary.main" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <CalendarMonth fontSize="small" />
+                              Data & Horário
+                            </Typography>
+                            <Typography variant="h6" fontWeight={600}>
+                              {eventData.date && format(new Date(eventData.date), 'dd/MM/yyyy', { locale: ptBR })}
+                            </Typography>
+                            <Typography variant="body1" color="text.secondary">
+                              {eventData.startTime} - {eventData.endTime || 'Não informado'}
+                            </Typography>
+                          </Box>
+                        </Grid>
+
+                        {/* Terapeuta */}
+                        <Grid item xs={12} sm={6} md={4}>
+                          <Box sx={{ 
+                            p: 2, 
+                            bgcolor: 'success.50', 
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'success.200',
+                            height: '100%'
+                          }}>
+                            <Typography variant="subtitle2" color="success.main" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Person fontSize="small" />
+                              Terapeuta
+                            </Typography>
+                            <Typography variant="body1" fontWeight={600}>
+                              {eventData.therapist?.name || 'Não informado'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Responsável pelo atendimento
+                            </Typography>
+                          </Box>
+                        </Grid>
+
+                        {/* Filial */}
+                        <Grid item xs={12} sm={6} md={4}>
+                          <Box sx={{ 
+                            p: 2, 
+                            bgcolor: 'warning.50', 
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'warning.200',
+                            height: '100%'
+                          }}>
+                            <Typography variant="subtitle2" color="warning.main" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Business fontSize="small" />
+                              Filial
+                            </Typography>
+                            <Typography variant="body1" fontWeight={600}>
+                              {eventData.branch?.name || 'Não informado'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Local do atendimento
+                            </Typography>
+                          </Box>
+                        </Grid>
+
+                        {/* Serviço - Expandido com mais informações */}
+                        <Grid item xs={12}>
+                          <Box sx={{ 
+                            p: 3, 
+                            bgcolor: 'info.50', 
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'info.200'
+                          }}>
+                            <Typography variant="subtitle1" color="info.main" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                              <MedicalServices />
+                              Detalhes do Serviço
+                            </Typography>
+                            
+                            <Grid container spacing={2}>
+                              {/* Nome do Serviço */}
+                              <Grid item xs={12} sm={6}>
+                                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                  Nome do Serviço
+                                </Typography>
+                                <Typography variant="h6" fontWeight={600} color="info.main">
+                                  {eventData.service?.name || 'Não informado'}
+                                </Typography>
+                              </Grid>
+
+                              {/* Preço */}
+                              <Grid item xs={12} sm={6}>
+                                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <AttachMoney fontSize="small" color="success" />
+                                  Valor do Serviço
+                                </Typography>
+                                <Typography variant="h6" fontWeight={600} color="success.main">
+                                  {eventData.service?.price 
+                                    ? new Intl.NumberFormat('pt-BR', { 
+                                        style: 'currency', 
+                                        currency: 'BRL' 
+                                      }).format(eventData.service.price)
+                                    : 'Não informado'
+                                  }
+                                </Typography>
+                              </Grid>
+
+                              {/* Duração */}
+                              <Grid item xs={12} sm={6}>
+                                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <AccessTime fontSize="small" color="info" />
+                                  Duração Estimada
+                                </Typography>
+                                <Typography variant="body1" fontWeight={500}>
+                                  {eventData.service?.averageDuration 
+                                    ? `${eventData.service.averageDuration} minutos`
+                                    : 'Não informada'
+                                  }
+                                </Typography>
+                              </Grid>
+
+                              {/* Código do Serviço */}
+                              <Grid item xs={12} sm={6}>
+                                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <QrCode2 fontSize="small" color="action" />
+                                  Código do Serviço
+                                </Typography>
+                                <Typography variant="body2" sx={{ 
+                                  fontFamily: 'monospace',
+                                  bgcolor: 'white',
+                                  p: 1,
+                                  borderRadius: 1,
+                                  border: '1px solid',
+                                  borderColor: 'grey.300',
+                                  display: 'inline-block'
+                                }}>
+                                  {eventData.service?.id || 'N/A'}
+                                </Typography>
+                              </Grid>
+
+                              {/* Descrição do Serviço */}
+                              {eventData.service?.description && (
+                                <Grid item xs={12}>
+                                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                    Descrição do Serviço
+                                  </Typography>
+                                  <Paper sx={{ 
+                                    p: 2, 
+                                    bgcolor: 'white', 
+                                    border: '1px solid', 
+                                    borderColor: 'grey.300',
+                                    borderRadius: 1
+                                  }}>
+                                    <Typography variant="body2" color="text.primary">
+                                      {eventData.service.description}
+                                    </Typography>
+                                  </Paper>
+                                </Grid>
+                              )}
+                            </Grid>
+                          </Box>
+                        </Grid>
+
+
+                      </Grid>
+
+                      {/* Observações */}
+                      {eventData.notes && (
+                        <Box sx={{ mt: 3 }}>
+                          <Typography variant="subtitle1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Notes color="action" />
+                            Observações
+                          </Typography>
+                          <Paper sx={{ p: 2, bgcolor: 'grey.50', border: '1px solid', borderColor: 'grey.200' }}>
+                            <Typography variant="body2">
+                              {eventData.notes}
+                            </Typography>
+                          </Paper>
+                        </Box>
+                      )}
+                    </Box>
                   </Grid>
-                )}
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2">Filial</Typography>
-                  <Typography>{eventData.branch?.name || 'Não informado'}</Typography>
+
+                  {/* Sidebar com informações adicionais */}
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ 
+                      bgcolor: 'grey.50', 
+                      height: '100%', 
+                      p: 3,
+                      borderLeft: { md: '1px solid' },
+                      borderColor: { md: 'divider' }
+                    }}>
+                      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Info color="primary" />
+                        Informações Extras
+                      </Typography>
+
+                      {/* Informações do cliente */}
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle2" gutterBottom color="primary">
+                          Informações do Cliente
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <Phone fontSize="small" color="action" />
+                          <Typography variant="body2">
+                            {eventData.client?.phone || 'Não informado'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <Email fontSize="small" color="action" />
+                          <Typography variant="body2">
+                            {eventData.client?.email || 'Não informado'}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      {/* Agendamento ID */}
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="subtitle2" gutterBottom color="primary">
+                          ID do Agendamento
+                        </Typography>
+                        <Typography variant="body2" sx={{ 
+                          fontFamily: 'monospace',
+                          bgcolor: 'white',
+                          p: 1,
+                          borderRadius: 1,
+                          border: '1px solid',
+                          borderColor: 'grey.300'
+                        }}>
+                          {eventData.id || 'N/A'}
+                        </Typography>
+                      </Box>
+
+                      {/* Última atualização */}
+                      <Box>
+                        <Typography variant="subtitle2" gutterBottom color="primary">
+                          Última Atualização
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {eventData.updatedAt ? format(new Date(eventData.updatedAt), 'dd/MM/yyyy HH:mm', { locale: ptBR }) : 'Não disponível'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
                 </Grid>
-              </Grid>
-            );
-          })()}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenEventModal(false)}>Fechar</Button>
-          <Button 
-            onClick={() => {
-              const eventData = selectedEvent.extendedProps || selectedEvent;
-              const originalAppointment = eventData.originalAppointment || selectedEvent;
-              handleOpenForm(originalAppointment);
-              setOpenEventModal(false);
-            }} 
-            color="primary"
-          >
-            Editar
-          </Button>
-        </DialogActions>
+              </DialogContent>
+
+              {/* Actions melhoradas */}
+              <DialogActions sx={{ p: 3, bgcolor: 'grey.50', gap: 1 }}>
+                <Button 
+                  onClick={() => setOpenEventModal(false)}
+                  variant="outlined"
+                  size="large"
+                  startIcon={<Cancel />}
+                >
+                  Fechar
+                </Button>
+                <Button 
+                  onClick={() => {
+                    const eventData = selectedEvent.extendedProps || selectedEvent;
+                    const originalAppointment = eventData.originalAppointment || selectedEvent;
+                    handleOpenForm(originalAppointment);
+                    setOpenEventModal(false);
+                  }} 
+                  variant="contained"
+                  size="large"
+                  startIcon={<Edit />}
+                  color="primary"
+                >
+                  Editar Agendamento
+                </Button>
+              </DialogActions>
+            </>
+          );
+        })()}
       </Dialog>
     </Container>
   );
