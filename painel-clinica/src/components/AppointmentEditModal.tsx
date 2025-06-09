@@ -141,14 +141,59 @@ const AppointmentEditModal: React.FC<AppointmentEditModalProps> = ({
   // Load appointment data
   useEffect(() => {
     if (appointment && open) {
+      console.log('📅 Dados recebidos do appointment:', appointment);
+      
+      // Extrair data (pode vir como string ou objeto Date)
+      const appointmentDate = appointment.date ? dayjs(appointment.date) : dayjs();
+      
+      // Extrair horários com diferentes fallbacks
+      let startDateTime, endDateTime;
+      
+      if (appointment.startTime) {
+        // Tentar diferentes formatos de horário
+        if (appointment.startTime.includes(':')) {
+          // Formato HH:mm
+          startDateTime = dayjs(`${appointmentDate.format('YYYY-MM-DD')} ${appointment.startTime}`);
+        } else {
+          // Tentar parseor como string ISO ou timestamp
+          startDateTime = dayjs(appointment.startTime);
+        }
+      } else {
+        startDateTime = dayjs();
+      }
+      
+      if (appointment.endTime) {
+        if (appointment.endTime.includes(':')) {
+          // Formato HH:mm
+          endDateTime = dayjs(`${appointmentDate.format('YYYY-MM-DD')} ${appointment.endTime}`);
+        } else {
+          // Tentar parser como string ISO ou timestamp
+          endDateTime = dayjs(appointment.endTime);
+        }
+      } else {
+        // Se não tem endTime, calcular baseado no startTime + 1 hora
+        endDateTime = startDateTime.add(1, 'hour');
+      }
+
+      console.log('📅 Horários processados:', {
+        originalDate: appointment.date,
+        originalStart: appointment.startTime,
+        originalEnd: appointment.endTime,
+        parsedDate: appointmentDate.format('YYYY-MM-DD'),
+        parsedStartTime: startDateTime.format('HH:mm'),
+        parsedEndTime: endDateTime.format('HH:mm'),
+        startValid: startDateTime.isValid(),
+        endValid: endDateTime.isValid()
+      });
+
       setFormData({
-        clientId: appointment.client?.id || '',
-        therapistId: appointment.therapist?.id || '',
-        serviceId: appointment.service?.id || '',
-        branchId: appointment.branch?.id || branchContext?.currentBranch?.id || '',
-        date: dayjs(appointment.date),
-        startTime: dayjs(`${appointment.date} ${appointment.startTime}`),
-        endTime: appointment.endTime ? dayjs(`${appointment.date} ${appointment.endTime}`) : dayjs(),
+        clientId: appointment.client?.id || appointment.clientId || '',
+        therapistId: appointment.therapist?.id || appointment.therapistId || '',
+        serviceId: appointment.service?.id || appointment.serviceId || '',
+        branchId: appointment.branch?.id || appointment.branchId || branchContext?.currentBranch?.id || '',
+        date: appointmentDate,
+        startTime: startDateTime.isValid() ? startDateTime : dayjs(),
+        endTime: endDateTime.isValid() ? endDateTime : dayjs(),
         status: appointment.status || 'SCHEDULED',
         notes: appointment.notes || ''
       });
@@ -440,7 +485,10 @@ const AppointmentEditModal: React.FC<AppointmentEditModalProps> = ({
               <TimePicker
                 label="Horário de Início"
                 value={formData.startTime}
-                onChange={(newValue) => setFormData({ ...formData, startTime: newValue || dayjs() })}
+                onChange={(newValue) => {
+                  console.log('⏰ Novo startTime selecionado:', newValue?.format('HH:mm'));
+                  setFormData({ ...formData, startTime: newValue || dayjs() });
+                }}
                 slotProps={{
                   textField: {
                     fullWidth: true,
@@ -455,14 +503,19 @@ const AppointmentEditModal: React.FC<AppointmentEditModalProps> = ({
               <TimePicker
                 label="Horário de Término"
                 value={formData.endTime}
-                onChange={(newValue) => setFormData({ ...formData, endTime: newValue || dayjs() })}
+                onChange={(newValue) => {
+                  console.log('⏰ Novo endTime selecionado:', newValue?.format('HH:mm'));
+                  setFormData({ ...formData, endTime: newValue || dayjs() });
+                }}
                 slotProps={{
                   textField: {
-                    fullWidth: true
+                    fullWidth: true,
+                    helperText: ''
                   }
                 }}
               />
             </Grid>
+
 
             {availableSlots.length > 0 && (
               <Grid item xs={12}>

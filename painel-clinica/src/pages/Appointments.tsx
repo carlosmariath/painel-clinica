@@ -1156,9 +1156,42 @@ const Appointments = () => {
                 </Button>
                 <Button 
                   onClick={() => {
+                    console.log('🔍 selectedEvent completo:', selectedEvent);
                     const eventData = selectedEvent.extendedProps || selectedEvent;
-                    const originalAppointment = eventData.originalAppointment || selectedEvent;
-                    handleOpenForm(originalAppointment);
+                    console.log('🔍 eventData extraído:', eventData);
+                    
+                    // Normalizar dados do appointment para o modal
+                    const normalizedAppointment = {
+                      id: eventData.id || selectedEvent.id,
+                      client: eventData.client || {
+                        id: eventData.clientId,
+                        name: eventData.clientName || eventData.client?.name,
+                        phone: eventData.client?.phone,
+                        email: eventData.client?.email
+                      },
+                      therapist: eventData.therapist || {
+                        id: eventData.therapistId,
+                        name: eventData.therapistName || eventData.therapist?.name
+                      },
+                      service: eventData.service || {
+                        id: eventData.serviceId,
+                        name: eventData.serviceName || eventData.service?.name,
+                        price: eventData.service?.price,
+                        averageDuration: eventData.service?.averageDuration
+                      },
+                      branch: eventData.branch || {
+                        id: eventData.branchId,
+                        name: eventData.branchName || eventData.branch?.name
+                      },
+                      date: eventData.date || selectedEvent.startStr?.split('T')[0],
+                      startTime: eventData.startTime || selectedEvent.startStr?.split('T')[1]?.substring(0, 5),
+                      endTime: eventData.endTime || selectedEvent.endStr?.split('T')[1]?.substring(0, 5),
+                      status: eventData.status,
+                      notes: eventData.notes
+                    };
+                    
+                    console.log('🔧 Appointment normalizado para edição:', normalizedAppointment);
+                    handleOpenForm(normalizedAppointment);
                     setOpenEventModal(false);
                   }} 
                   variant="contained"

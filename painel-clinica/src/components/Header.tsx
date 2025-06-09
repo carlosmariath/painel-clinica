@@ -11,7 +11,13 @@ import {
   Tooltip,
   Divider,
   ListItemIcon,
-  useMediaQuery
+  useMediaQuery,
+  Chip,
+  InputBase,
+  alpha,
+  Paper,
+  Slide,
+  Fade
 } from "@mui/material";
 import { 
   Notifications, 
@@ -19,12 +25,18 @@ import {
   Settings, 
   Logout, 
   Search as SearchIcon,
-  ArrowBackIos
+  ArrowBackIos,
+  KeyboardArrowDown,
+  DashboardCustomize,
+  Menu as MenuIcon,
+  Close as CloseIcon,
+  FiberManualRecord
 } from "@mui/icons-material";
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import theme from "../theme";
+import Logo from "./Logo";
 
 const Header = () => {
   const { user, logout } = useAuth();
@@ -32,11 +44,11 @@ const Header = () => {
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
-  // Para o menu do usuário
+  // Estados para menus
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
-  
-  // Para o menu de notificações
   const [anchorElNotifications, setAnchorElNotifications] = useState<null | HTMLElement>(null);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
   
   // Exemplo de notificações (em um app real, viria de um contexto ou API)
   const notifications = [
@@ -76,9 +88,27 @@ const Header = () => {
     if (path === '/therapists') return 'Terapeutas';
     if (path === '/appointments') return 'Agendamentos';
     if (path === '/therapist-schedule') return 'Minha Agenda';
+    if (path === '/financas') return 'Finanças';
+    if (path === '/user-settings') return 'Configurações';
+    if (path === '/branches') return 'Filiais';
     
-    // Título padrão se nenhum dos casos acima
     return 'Painel Administrativo';
+  };
+
+  // Ícone da página baseado na rota atual
+  const getPageIcon = () => {
+    const path = location.pathname;
+    
+    if (path === '/dashboard') return '📊';
+    if (path === '/clients') return '👥';
+    if (path === '/therapists') return '👨‍⚕️';
+    if (path === '/appointments') return '📅';
+    if (path === '/therapist-schedule') return '🗓️';
+    if (path === '/financas') return '💰';
+    if (path === '/user-settings') return '⚙️';
+    if (path === '/branches') return '🏢';
+    
+    return '🏥';
   };
   
   // Contagem de notificações não lidas
@@ -89,49 +119,183 @@ const Header = () => {
       position="fixed" 
       elevation={0}
       sx={{ 
-        width: { xs: '100%', md: `calc(100%)` }, 
-        ml: { xs: 0, md: '0' },
-        backgroundColor: theme.palette.background.paper,
+        width: '100%',
+        background: `linear-gradient(135deg, 
+          rgba(255, 255, 255, 0.95) 0%, 
+          rgba(248, 250, 252, 0.95) 100%)`,
+        backdropFilter: 'blur(20px)',
+        borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
         color: theme.palette.text.primary,
-        borderBottom: `1px solid ${theme.palette.grey[200]}`,
-        zIndex: (theme) => theme.zIndex.drawer - 1
+        zIndex: theme.zIndex.drawer + 1,
       }}
     >
-      <Toolbar sx={{ display: "flex", justifyContent: "space-between", height: 64 }}>
-        {/* Título da página */}
-        <Box display="flex" alignItems="center">
+      <Toolbar 
+        sx={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          height: 72,
+          px: { xs: 2, md: 4 }
+        }}
+      >
+        {/* Logo e Navegação */}
+        <Box display="flex" alignItems="center" gap={3}>
           {isMobile && location.pathname !== '/dashboard' && (
             <IconButton 
               edge="start" 
               color="inherit" 
-              sx={{ mr: 1 }}
+              sx={{ 
+                mr: 1,
+                background: alpha(theme.palette.primary.main, 0.1),
+                '&:hover': {
+                  background: alpha(theme.palette.primary.main, 0.2),
+                }
+              }}
               onClick={() => navigate(-1)}
             >
               <ArrowBackIos fontSize="small" />
             </IconButton>
           )}
-          <Typography variant="h5" fontWeight={600}>
-            {getPageTitle()}
-          </Typography>
+          
+          <Logo size="small" variant="horizontal" animated />
+          
+          {/* Breadcrumb moderno */}
+          <Box 
+            sx={{ 
+              display: { xs: 'none', lg: 'flex' },
+              alignItems: 'center',
+              gap: 1,
+              ml: 2
+            }}
+          >
+            <Chip
+              icon={<DashboardCustomize sx={{ fontSize: 16 }} />}
+              label="Painel"
+              size="small"
+              variant="outlined"
+              sx={{
+                borderColor: alpha(theme.palette.primary.main, 0.3),
+                color: theme.palette.text.secondary,
+                fontSize: '0.75rem',
+              }}
+            />
+            <KeyboardArrowDown 
+              sx={{ 
+                fontSize: 16, 
+                color: theme.palette.text.secondary,
+                transform: 'rotate(-90deg)'
+              }} 
+            />
+            <Paper
+              elevation={0}
+              sx={{
+                px: 2,
+                py: 0.5,
+                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <Typography sx={{ fontSize: 18 }}>
+                {getPageIcon()}
+              </Typography>
+              <Typography 
+                variant="body2" 
+                fontWeight={600}
+                color="primary.main"
+              >
+                {getPageTitle()}
+              </Typography>
+            </Paper>
+          </Box>
         </Box>
 
-        {/* Ícones de ação */}
-        <Box display="flex" alignItems="center" gap={0.5}>
-          {/* Pesquisa (placeholder para implementação futura) */}
-          <Tooltip title="Pesquisar">
-            <IconButton size="large" color="default">
-              <SearchIcon />
-            </IconButton>
-          </Tooltip>
+        {/* Ações do usuário */}
+        <Box display="flex" alignItems="center" gap={1}>
+          {/* Campo de pesquisa expandível */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
+            <Fade in={!searchExpanded}>
+              <Tooltip title="Pesquisar">
+                <IconButton 
+                  onClick={() => setSearchExpanded(true)}
+                  sx={{
+                    background: alpha(theme.palette.primary.main, 0.1),
+                    '&:hover': {
+                      background: alpha(theme.palette.primary.main, 0.2),
+                    }
+                  }}
+                >
+                  <SearchIcon />
+                </IconButton>
+              </Tooltip>
+            </Fade>
+            
+            <Slide direction="left" in={searchExpanded} mountOnEnter unmountOnExit>
+              <Paper
+                elevation={2}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  width: 300,
+                  height: 40,
+                  pl: 2,
+                  borderRadius: 3,
+                  background: 'rgba(255, 255, 255, 0.9)',
+                  backdropFilter: 'blur(10px)',
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                }}
+              >
+                <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
+                <InputBase
+                  placeholder="Pesquisar..."
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  onBlur={() => {
+                    if (!searchValue) setSearchExpanded(false);
+                  }}
+                  autoFocus
+                  sx={{ ml: 1, flex: 1, fontSize: '0.9rem' }}
+                />
+                <IconButton 
+                  size="small" 
+                  onClick={() => {
+                    setSearchExpanded(false);
+                    setSearchValue('');
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Paper>
+            </Slide>
+          </Box>
           
-          {/* Notificações */}
+          {/* Notificações modernizadas */}
           <Tooltip title="Notificações">
             <IconButton 
-              size="large" 
-              color="default"
               onClick={handleOpenNotifications}
+              sx={{
+                background: alpha(theme.palette.primary.main, 0.1),
+                '&:hover': {
+                  background: alpha(theme.palette.primary.main, 0.2),
+                }
+              }}
             >
-              <Badge badgeContent={unreadCount} color="primary">
+              <Badge 
+                badgeContent={unreadCount} 
+                color="error"
+                sx={{
+                  '& .MuiBadge-badge': {
+                    background: 'linear-gradient(135deg, #ff4757 0%, #ff3742 100%)',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '0.7rem',
+                    minWidth: 18,
+                    height: 18,
+                  }
+                }}
+              >
                 <Notifications />
               </Badge>
             </IconButton>
@@ -142,47 +306,90 @@ const Header = () => {
             open={Boolean(anchorElNotifications)}
             onClose={handleCloseNotifications}
             PaperProps={{
-              elevation: 2,
+              elevation: 8,
               sx: {
                 overflow: 'visible',
                 mt: 1.5,
-                width: 320,
+                width: 380,
+                borderRadius: 3,
+                background: 'rgba(255, 255, 255, 0.95)',
+                backdropFilter: 'blur(20px)',
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
                 '& .MuiMenuItem-root': {
                   px: 2,
                   py: 1.5,
-                  borderLeft: (theme) => 
-                    `3px solid ${theme.palette.background.paper}`,
+                  borderRadius: 2,
+                  mx: 1,
+                  mb: 0.5,
+                  transition: 'all 0.2s ease',
                   '&:hover': {
-                    borderLeft: (theme) => 
-                      `3px solid ${theme.palette.primary.main}`,
+                    background: alpha(theme.palette.primary.main, 0.08),
+                    transform: 'translateX(4px)',
                   },
                 },
               },
             }}
           >
-            <Typography variant="subtitle1" fontWeight={600} sx={{ px: 2, pt: 2, pb: 1 }}>
-              Notificações
-            </Typography>
-            <Divider />
+            <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="h6" fontWeight={700}>
+                🔔 Notificações
+              </Typography>
+              {unreadCount > 0 && (
+                <Chip 
+                  label={`${unreadCount} nova${unreadCount > 1 ? 's' : ''}`}
+                  size="small"
+                  color="error"
+                  sx={{ fontSize: '0.7rem', height: 20 }}
+                />
+              )}
+            </Box>
+            <Divider sx={{ mx: 1 }} />
             
             {notifications.length === 0 ? (
               <MenuItem>
-                <Typography variant="body2">Nenhuma notificação no momento</Typography>
+                <Box sx={{ textAlign: 'center', py: 2, width: '100%' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    📭 Nenhuma notificação no momento
+                  </Typography>
+                </Box>
               </MenuItem>
             ) : (
               notifications.map((notification) => (
                 <MenuItem 
                   key={notification.id}
                   sx={{
-                    backgroundColor: notification.read ? 'inherit' : `${theme.palette.primary.light}15`,
-                    borderLeft: notification.read 
-                      ? `3px solid ${theme.palette.background.paper}` 
-                      : `3px solid ${theme.palette.primary.main}`,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 1.5,
+                    background: notification.read 
+                      ? 'transparent' 
+                      : alpha(theme.palette.primary.main, 0.05),
+                    border: notification.read 
+                      ? 'none' 
+                      : `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
                   }}
                 >
-                  <Box>
-                    <Typography variant="body2" fontWeight={notification.read ? 400 : 600}>
+                  <FiberManualRecord
+                    sx={{
+                      fontSize: 8,
+                      color: notification.read ? 'transparent' : 'error.main',
+                      mt: 1
+                    }}
+                  />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography 
+                      variant="body2" 
+                      fontWeight={notification.read ? 400 : 600}
+                      sx={{ lineHeight: 1.4 }}
+                    >
                       {notification.message}
+                    </Typography>
+                    <Typography 
+                      variant="caption" 
+                      color="text.secondary"
+                      sx={{ mt: 0.5, display: 'block' }}
+                    >
+                      Há 5 minutos
                     </Typography>
                   </Box>
                 </MenuItem>
@@ -206,18 +413,43 @@ const Header = () => {
             )}
           </Menu>
           
-          {/* Avatar e menu do usuário */}
+          {/* Avatar e menu do usuário modernizado */}
           <Tooltip title="Minha conta">
-            <IconButton onClick={handleOpenUserMenu} sx={{ p: 0, ml: 1 }}>
-              <Avatar 
-                sx={{ 
-                  width: 36, 
-                  height: 36,
-                  bgcolor: theme.palette.primary.main
+            <IconButton 
+              onClick={handleOpenUserMenu} 
+              sx={{ 
+                p: 0.5, 
+                ml: 1,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'scale(1.05)',
+                }
+              }}
+            >
+              <Paper
+                elevation={2}
+                sx={{
+                  borderRadius: '50%',
+                  p: 0.5,
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, #00D4FF 100%)`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                {user?.name?.charAt(0) || 'U'}
-              </Avatar>
+                <Avatar 
+                  sx={{ 
+                    width: 36, 
+                    height: 36,
+                    backgroundColor: 'white',
+                    color: theme.palette.primary.main,
+                    fontWeight: 'bold',
+                    fontSize: '1.1rem'
+                  }}
+                >
+                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </Avatar>
+              </Paper>
             </IconButton>
           </Tooltip>
           
@@ -226,10 +458,15 @@ const Header = () => {
             open={Boolean(anchorElUser)}
             onClose={handleCloseUserMenu}
             PaperProps={{
-              elevation: 2,
+              elevation: 8,
               sx: {
                 overflow: 'visible',
                 mt: 1.5,
+                minWidth: 280,
+                borderRadius: 3,
+                background: 'rgba(255, 255, 255, 0.95)',
+                backdropFilter: 'blur(20px)',
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
                 '&:before': {
                   content: '""',
                   display: 'block',
@@ -238,40 +475,83 @@ const Header = () => {
                   right: 20,
                   width: 10,
                   height: 10,
-                  bgcolor: 'background.paper',
+                  bgcolor: 'rgba(255, 255, 255, 0.95)',
                   transform: 'translateY(-50%) rotate(45deg)',
                   zIndex: 0,
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                },
+                '& .MuiMenuItem-root': {
+                  borderRadius: 2,
+                  mx: 1,
+                  mb: 0.5,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    background: alpha(theme.palette.primary.main, 0.08),
+                    transform: 'translateX(4px)',
+                  },
                 },
               },
             }}
           >
-            <Box sx={{ px: 2, py: 1.5 }}>
-              <Typography variant="subtitle2" fontWeight={600}>
-                {user?.name || 'Usuário'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+            {/* Cabeçalho do perfil */}
+            <Box sx={{ px: 3, py: 2 }}>
+              <Box display="flex" alignItems="center" gap={2} mb={1}>
+                <Avatar 
+                  sx={{ 
+                    width: 48, 
+                    height: 48,
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, #00D4FF 100%)`,
+                    fontSize: '1.2rem',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </Avatar>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    {user?.name || 'Usuário'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {user?.role || 'Função'}
+                  </Typography>
+                </Box>
+              </Box>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                 {user?.email || 'usuario@exemplo.com'}
               </Typography>
             </Box>
-            <Divider />
+            
+            <Divider sx={{ mx: 1 }} />
+            
             <MenuItem onClick={() => { handleCloseUserMenu(); navigate('/profile'); }}>
               <ListItemIcon>
-                <Person fontSize="small" />
+                <Person sx={{ color: 'primary.main' }} />
               </ListItemIcon>
-              Meu Perfil
+              <Typography fontWeight={500}>Meu Perfil</Typography>
             </MenuItem>
-            <MenuItem onClick={() => { handleCloseUserMenu(); navigate('/settings'); }}>
+            
+            <MenuItem onClick={() => { handleCloseUserMenu(); navigate('/user-settings'); }}>
               <ListItemIcon>
-                <Settings fontSize="small" />
+                <Settings sx={{ color: 'primary.main' }} />
               </ListItemIcon>
-              Configurações
+              <Typography fontWeight={500}>Configurações</Typography>
             </MenuItem>
-            <Divider />
-            <MenuItem onClick={handleLogout}>
+            
+            <Divider sx={{ mx: 1, my: 1 }} />
+            
+            <MenuItem 
+              onClick={handleLogout}
+              sx={{
+                color: 'error.main',
+                '&:hover': {
+                  background: alpha('#ff4757', 0.08),
+                },
+              }}
+            >
               <ListItemIcon>
-                <Logout fontSize="small" />
+                <Logout sx={{ color: 'error.main' }} />
               </ListItemIcon>
-              Sair
+              <Typography fontWeight={500}>Sair da conta</Typography>
             </MenuItem>
           </Menu>
         </Box>

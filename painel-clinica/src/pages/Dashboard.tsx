@@ -25,7 +25,6 @@ import {
   PeopleAlt, 
   Today, 
   Person,
-  MoreVert,
   AttachMoney,
   Assignment,
   LocalHospital,

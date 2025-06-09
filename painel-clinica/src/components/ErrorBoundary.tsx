@@ -28,7 +28,7 @@ class ErrorBoundary extends Component<Props, State> {
 
     // Em produção, você pode enviar o erro para um serviço de monitoramento
     // como Sentry, LogRocket, etc.
-    if (process.env.NODE_ENV === 'production') {
+    if (import.meta.env.NODE_ENV === 'production') {
       // logErrorToService(error, errorInfo);
     }
   }
@@ -82,7 +82,7 @@ class ErrorBoundary extends Component<Props, State> {
                 Encontramos um erro inesperado. Por favor, tente recarregar a página.
               </Typography>
 
-              {process.env.NODE_ENV === 'development' && this.state.error && (
+              {import.meta.env.NODE_ENV === 'development' && this.state.error && (
                 <Box
                   sx={{
                     mt: 2,

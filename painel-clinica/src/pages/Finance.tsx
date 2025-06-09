@@ -16,10 +16,31 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  Paper
+  Paper,
+  Chip,
+  Stack,
+  IconButton,
+  Tooltip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  SelectChangeEvent
 } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { 
+  Add as AddIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  AccountBalance as AccountBalanceIcon,
+  FilterList as FilterListIcon,
+  CalendarToday as CalendarTodayIcon,
+  ArrowBack as ArrowBackIcon,
+  ArrowForward as ArrowForwardIcon,
+  Business as BusinessIcon
+} from '@mui/icons-material';
 import { useBranch } from '../context/BranchContext';
+import { getBranches } from '../services/branchService';
+import { Branch } from '../types/branch';
 import { 
   FinancialTransaction, 
   TransactionType, 
@@ -60,6 +81,8 @@ const Finance = () => {
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('ALL');
+  const [branches, setBranches] = useState<Branch[]>([]);
 
   // Carregar dados financeiros
   useEffect(() => {
@@ -68,18 +91,20 @@ const Finance = () => {
     } else if (activeTab === 'summary') {
       loadSummary();
     }
-  }, [currentBranch, activeTab, startDate, endDate, transactionType]);
+  }, [currentBranch, activeTab, startDate, endDate, transactionType, selectedBranchId]);
 
-  // Carregar categorias, métodos de pagamento e clientes ao montar
+  // Carregar categorias, métodos de pagamento, clientes e filiais ao montar
   useEffect(() => {
     Promise.all([
       financeService.getCategories(),
       financeService.getPaymentMethods(),
-      loadClientsMock()
-    ]).then(([categoriesData, methodsData, clientsData]) => {
+      loadClientsMock(),
+      getBranches()
+    ]).then(([categoriesData, methodsData, clientsData, branchesData]) => {
       setCategories(categoriesData);
       setPaymentMethods(methodsData);
       setClients(clientsData);
+      setBranches(branchesData);
     }).catch(error => {
       console.error('Erro ao carregar dados auxiliares:', error);
     });
@@ -100,13 +125,14 @@ const Finance = () => {
       const formattedStartDate = format(startDate, 'yyyy-MM-dd');
       const formattedEndDate = format(endDate, 'yyyy-MM-dd');
       const typeFilter = transactionType === 'ALL' ? undefined : transactionType;
+      const branchFilter = selectedBranchId === 'ALL' ? undefined : selectedBranchId;
       
       const data = await financeService.getTransactions(
         formattedStartDate,
         formattedEndDate,
         typeFilter,
         undefined,
-        currentBranch?.id
+        branchFilter
       );
       setTransactions(data);
     } catch (error) {
@@ -121,11 +147,12 @@ const Finance = () => {
     try {
       const formattedStartDate = format(startDate, 'yyyy-MM-dd');
       const formattedEndDate = format(endDate, 'yyyy-MM-dd');
+      const branchFilter = selectedBranchId === 'ALL' ? undefined : selectedBranchId;
       
       const data = await financeService.getFinancialSummary(
         formattedStartDate,
         formattedEndDate,
-        currentBranch?.id
+        branchFilter
       );
       setSummary(data);
     } catch (error) {
@@ -187,6 +214,10 @@ const Finance = () => {
     setTransactionType(newType);
   };
 
+  const handleBranchFilterChange = (event: SelectChangeEvent<string>) => {
+    setSelectedBranchId(event.target.value);
+  };
+
   const setPreviousMonth = () => {
     setStartDate(startOfMonth(subMonths(startDate, 1)));
     setEndDate(endOfMonth(subMonths(endDate, 1)));
@@ -211,254 +242,433 @@ const Finance = () => {
   };
 
   return (
-    <Container maxWidth="lg">
+    <Container maxWidth="xl">
       <Box my={4}>
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h4" component="h1" gutterBottom>
-                Finanças
+        {/* Cabeçalho */}
+        <Box mb={4}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Box>
+              <Typography variant="h4" component="h1" fontWeight="bold" color="primary.main">
+                💰 Gestão Financeira
               </Typography>
-              {activeTab === 'transactions' && (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={<AddIcon />}
-                  onClick={handleAddTransaction}
-                >
-                  Nova Transação
-                </Button>
-              )}
+              <Typography variant="body1" color="text.secondary" mt={1}>
+                {selectedBranchId === 'ALL' 
+                  ? 'Todas as filiais' 
+                  : `Filial: ${branches.find(b => b.id === selectedBranchId)?.name || 'Filial selecionada'}`
+                }
+              </Typography>
             </Box>
-          </Grid>
+            {activeTab === 'transactions' && (
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                startIcon={<AddIcon />}
+                onClick={handleAddTransaction}
+                sx={{ borderRadius: 2, px: 3 }}
+              >
+                Nova Transação
+              </Button>
+            )}
+          </Box>
 
           {/* Tabs para navegação */}
-          <Grid item xs={12}>
+          <Paper elevation={1} sx={{ borderRadius: 2, overflow: 'hidden' }}>
             <Tabs
               value={activeTab}
               onChange={handleTabChange}
               indicatorColor="primary"
               textColor="primary"
               variant="fullWidth"
+              sx={{
+                '& .MuiTab-root': {
+                  py: 2,
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                },
+              }}
             >
-              <Tab label="Transações" value="transactions" />
-              <Tab label="Resumo Financeiro" value="summary" />
+              <Tab 
+                label="📊 Transações" 
+                value="transactions"
+                icon={<FilterListIcon />}
+                iconPosition="start"
+              />
+              <Tab 
+                label="📈 Resumo Financeiro" 
+                value="summary"
+                icon={<AccountBalanceIcon />}
+                iconPosition="start"
+              />
             </Tabs>
-            <Divider />
-          </Grid>
+          </Paper>
+        </Box>
 
-          {/* Filtros de data */}
-          <Grid item xs={12}>
-            <Paper sx={{ p: 2, mb: 3 }}>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={3}>
-                  <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
-                    <DatePicker
-                      label="Data inicial"
-                      value={startDate}
-                      onChange={(newValue) => newValue && setStartDate(newValue)}
-                      slotProps={{ textField: { fullWidth: true, size: 'small' } }}
-                    />
-                  </LocalizationProvider>
-                </Grid>
-                <Grid item xs={12} md={3}>
-                  <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
-                    <DatePicker
-                      label="Data final"
-                      value={endDate}
-                      onChange={(newValue) => newValue && setEndDate(newValue)}
-                      slotProps={{ textField: { fullWidth: true, size: 'small' } }}
-                    />
-                  </LocalizationProvider>
-                </Grid>
-                <Grid item xs={12} md={3}>
-                  {activeTab === 'transactions' && (
-                    <Box>
-                      <Button 
-                        variant={transactionType === 'ALL' ? 'contained' : 'outlined'} 
-                        color="primary"
-                        size="small"
-                        onClick={() => handleTypeFilterChange('ALL')}
-                        sx={{ mr: 1 }}
-                      >
-                        Todos
-                      </Button>
-                      <Button 
-                        variant={transactionType === 'REVENUE' ? 'contained' : 'outlined'} 
-                        color="success"
-                        size="small"
-                        onClick={() => handleTypeFilterChange('REVENUE')}
-                        sx={{ mr: 1 }}
-                      >
-                        Receitas
-                      </Button>
-                      <Button 
-                        variant={transactionType === 'EXPENSE' ? 'contained' : 'outlined'} 
-                        color="error"
-                        size="small"
-                        onClick={() => handleTypeFilterChange('EXPENSE')}
-                      >
-                        Despesas
-                      </Button>
-                    </Box>
-                  )}
-                </Grid>
-                <Grid item xs={12} md={3}>
-                  <Box display="flex" justifyContent="flex-end">
-                    <Button
-                      size="small"
-                      onClick={setPreviousMonth}
-                      sx={{ mr: 1 }}
-                    >
-                      Mês Anterior
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={setCurrentMonth}
-                      sx={{ mr: 1 }}
-                    >
-                      Mês Atual
-                    </Button>
-                    <Button
-                      size="small"
-                      onClick={setNextMonth}
-                    >
-                      Próximo Mês
-                    </Button>
-                  </Box>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
-
-          {/* Conteúdo da Tab de Transações */}
-          {activeTab === 'transactions' && (
-            <Grid item xs={12}>
-              {loading ? (
-                <Box display="flex" justifyContent="center" p={3}>
-                  <CircularProgress />
-                </Box>
-              ) : (
-                <TransactionsTable
-                  transactions={transactions}
-                  onEdit={handleEditTransaction}
-                  onDelete={handleDeleteClick}
+        {/* Painel de Filtros */}
+        <Paper elevation={2} sx={{ p: 3, mb: 4, borderRadius: 2, background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)' }}>
+          <Box display="flex" alignItems="center" mb={2}>
+            <CalendarTodayIcon color="primary" sx={{ mr: 1 }} />
+            <Typography variant="h6" fontWeight="bold">
+              Filtros e Período
+            </Typography>
+          </Box>
+          
+          <Grid container spacing={3} alignItems="center">
+            {/* Seleção de Data */}
+            <Grid item xs={12} md={2}>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
+                <DatePicker
+                  label="Data inicial"
+                  value={startDate}
+                  onChange={(newValue) => newValue && setStartDate(newValue)}
+                  slotProps={{ 
+                    textField: { 
+                      fullWidth: true, 
+                      size: 'small',
+                      variant: 'outlined'
+                    } 
+                  }}
                 />
+              </LocalizationProvider>
+            </Grid>
+            
+            <Grid item xs={12} md={2}>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ptBR}>
+                <DatePicker
+                  label="Data final"
+                  value={endDate}
+                  onChange={(newValue) => newValue && setEndDate(newValue)}
+                  slotProps={{ 
+                    textField: { 
+                      fullWidth: true, 
+                      size: 'small',
+                      variant: 'outlined'
+                    } 
+                  }}
+                />
+              </LocalizationProvider>
+            </Grid>
+
+            {/* Filtro de Filial */}
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="branch-filter-label">
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    <BusinessIcon fontSize="small" />
+                    Filial
+                  </Box>
+                </InputLabel>
+                <Select
+                  labelId="branch-filter-label"
+                  value={selectedBranchId}
+                  onChange={handleBranchFilterChange}
+                  label="Filial"
+                >
+                  <MenuItem value="ALL">
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <BusinessIcon fontSize="small" />
+                      Todas as filiais
+                    </Box>
+                  </MenuItem>
+                  {branches.map((branch) => (
+                    <MenuItem key={branch.id} value={branch.id}>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <BusinessIcon fontSize="small" />
+                        {branch.name}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Filtros de Tipo - apenas na aba de transações */}
+            <Grid item xs={12} md={3}>
+              {activeTab === 'transactions' && (
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip 
+                    label="Todos" 
+                    variant={transactionType === 'ALL' ? 'filled' : 'outlined'}
+                    color="primary"
+                    onClick={() => handleTypeFilterChange('ALL')}
+                    clickable
+                  />
+                  <Chip 
+                    label="Receitas" 
+                    variant={transactionType === 'REVENUE' ? 'filled' : 'outlined'}
+                    color="success"
+                    onClick={() => handleTypeFilterChange('REVENUE')}
+                    clickable
+                    icon={<TrendingUpIcon />}
+                  />
+                  <Chip 
+                    label="Despesas" 
+                    variant={transactionType === 'EXPENSE' ? 'filled' : 'outlined'}
+                    color="error"
+                    onClick={() => handleTypeFilterChange('EXPENSE')}
+                    clickable
+                    icon={<TrendingDownIcon />}
+                  />
+                </Stack>
               )}
             </Grid>
-          )}
 
-          {/* Conteúdo da Tab de Resumo Financeiro */}
-          {activeTab === 'summary' && (
-            <>
-              <Grid item xs={12}>
-                <Box mb={3}>
-                  <Typography variant="h5" gutterBottom>
-                    Resumo do Período: {format(startDate, 'dd/MM/yyyy')} a {format(endDate, 'dd/MM/yyyy')}
-                  </Typography>
-                </Box>
-              </Grid>
+            {/* Navegação de Mês */}
+            <Grid item xs={12} md={3}>
+              <Box display="flex" justifyContent="flex-end" gap={1}>
+                <Tooltip title="Mês anterior">
+                  <IconButton 
+                    onClick={setPreviousMonth}
+                    size="small"
+                    sx={{ bgcolor: 'background.paper' }}
+                  >
+                    <ArrowBackIcon />
+                  </IconButton>
+                </Tooltip>
+                
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={setCurrentMonth}
+                  sx={{ borderRadius: 2, minWidth: 'auto', px: 2 }}
+                >
+                  Atual
+                </Button>
+                
+                <Tooltip title="Próximo mês">
+                  <IconButton 
+                    onClick={setNextMonth}
+                    size="small"
+                    sx={{ bgcolor: 'background.paper' }}
+                  >
+                    <ArrowForwardIcon />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Grid>
+          </Grid>
+        </Paper>
 
-              {loading ? (
-                <Grid item xs={12}>
-                  <Box display="flex" justifyContent="center" p={3}>
-                    <CircularProgress />
-                  </Box>
+        {/* Conteúdo da Tab de Transações */}
+        {activeTab === 'transactions' && (
+          <Paper elevation={1} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+            {loading ? (
+              <Box display="flex" justifyContent="center" p={6}>
+                <CircularProgress size={60} />
+              </Box>
+            ) : (
+              <TransactionsTable
+                transactions={transactions}
+                onEdit={handleEditTransaction}
+                onDelete={handleDeleteClick}
+              />
+            )}
+          </Paper>
+        )}
+
+        {/* Conteúdo da Tab de Resumo Financeiro */}
+        {activeTab === 'summary' && (
+          <Box>
+            {/* Título do Período */}
+            <Box mb={4}>
+              <Typography variant="h5" fontWeight="bold" align="center" gutterBottom>
+                📊 Resumo Financeiro
+              </Typography>
+              <Typography variant="body1" color="text.secondary" align="center">
+                Período: {format(startDate, 'dd/MM/yyyy')} a {format(endDate, 'dd/MM/yyyy')}
+              </Typography>
+            </Box>
+
+            {loading ? (
+              <Box display="flex" justifyContent="center" p={6}>
+                <CircularProgress size={60} />
+              </Box>
+            ) : summary ? (
+              <Grid container spacing={3}>
+                {/* Cards de resumo melhorados */}
+                <Grid item xs={12} md={4}>
+                  <Card 
+                    elevation={3}
+                    sx={{ 
+                      background: 'linear-gradient(135deg, #4caf50 0%, #81c784 100%)',
+                      color: 'white',
+                      borderRadius: 3,
+                      transition: 'transform 0.2s',
+                      '&:hover': { transform: 'translateY(-4px)' }
+                    }}
+                  >
+                    <CardContent sx={{ p: 3 }}>
+                      <Box display="flex" alignItems="center" justifyContent="space-between">
+                        <Box>
+                          <Typography variant="h6" fontWeight="bold" mb={1}>
+                            Total de Receitas
+                          </Typography>
+                          <Typography variant="h4" component="div" fontWeight="bold">
+                            {formatCurrency(summary.totalRevenue)}
+                          </Typography>
+                        </Box>
+                        <TrendingUpIcon sx={{ fontSize: 48, opacity: 0.7 }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
                 </Grid>
-              ) : summary ? (
-                <>
-                  {/* Cards de resumo */}
-                  <Grid item xs={12} md={4}>
-                    <Card sx={{ bgcolor: 'success.light' }}>
-                      <CardContent>
-                        <Typography color="white" gutterBottom>
-                          Total de Receitas
-                        </Typography>
-                        <Typography variant="h4" component="div" color="white">
-                          {formatCurrency(summary.totalRevenue)}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <Card sx={{ bgcolor: 'error.light' }}>
-                      <CardContent>
-                        <Typography color="white" gutterBottom>
-                          Total de Despesas
-                        </Typography>
-                        <Typography variant="h4" component="div" color="white">
-                          {formatCurrency(summary.totalExpense)}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <Card sx={{ bgcolor: summary.balance >= 0 ? 'primary.light' : 'warning.light' }}>
-                      <CardContent>
-                        <Typography color="white" gutterBottom>
-                          Balanço do Período
-                        </Typography>
-                        <Typography variant="h4" component="div" color="white">
-                          {formatCurrency(summary.balance)}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
 
-                  {/* Detalhamento por categoria */}
-                  {summary.byCategory.REVENUE && Object.keys(summary.byCategory.REVENUE).length > 0 && (
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="h6" gutterBottom mt={3}>
-                        Receitas por Categoria
+                <Grid item xs={12} md={4}>
+                  <Card 
+                    elevation={3}
+                    sx={{ 
+                      background: 'linear-gradient(135deg, #f44336 0%, #ef5350 100%)',
+                      color: 'white',
+                      borderRadius: 3,
+                      transition: 'transform 0.2s',
+                      '&:hover': { transform: 'translateY(-4px)' }
+                    }}
+                  >
+                    <CardContent sx={{ p: 3 }}>
+                      <Box display="flex" alignItems="center" justifyContent="space-between">
+                        <Box>
+                          <Typography variant="h6" fontWeight="bold" mb={1}>
+                            Total de Despesas
+                          </Typography>
+                          <Typography variant="h4" component="div" fontWeight="bold">
+                            {formatCurrency(summary.totalExpense)}
+                          </Typography>
+                        </Box>
+                        <TrendingDownIcon sx={{ fontSize: 48, opacity: 0.7 }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                  <Card 
+                    elevation={3}
+                    sx={{ 
+                      background: summary.balance >= 0 
+                        ? 'linear-gradient(135deg, #2196f3 0%, #64b5f6 100%)'
+                        : 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)',
+                      color: 'white',
+                      borderRadius: 3,
+                      transition: 'transform 0.2s',
+                      '&:hover': { transform: 'translateY(-4px)' }
+                    }}
+                  >
+                    <CardContent sx={{ p: 3 }}>
+                      <Box display="flex" alignItems="center" justifyContent="space-between">
+                        <Box>
+                          <Typography variant="h6" fontWeight="bold" mb={1}>
+                            Balanço do Período
+                          </Typography>
+                          <Typography variant="h4" component="div" fontWeight="bold">
+                            {formatCurrency(summary.balance)}
+                          </Typography>
+                        </Box>
+                        <AccountBalanceIcon sx={{ fontSize: 48, opacity: 0.7 }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Detalhamento por categoria */}
+                {summary.byCategory.REVENUE && Object.keys(summary.byCategory.REVENUE).length > 0 && (
+                  <Grid item xs={12} md={6}>
+                    <Paper elevation={2} sx={{ p: 3, borderRadius: 2, mt: 2 }}>
+                      <Typography variant="h6" fontWeight="bold" gutterBottom>
+                        💚 Receitas por Categoria
                       </Typography>
-                      <Paper elevation={1} sx={{ p: 2 }}>
+                      <Stack spacing={2}>
                         {Object.entries(summary.byCategory.REVENUE).map(([category, data]) => (
-                          <Box key={category} display="flex" justifyContent="space-between" mb={1}>
-                            <Typography>
-                              {category} ({data.count})
-                            </Typography>
-                            <Typography fontWeight="bold" color="success.main">
+                          <Box 
+                            key={category} 
+                            sx={{ 
+                              p: 2, 
+                              borderRadius: 1, 
+                              bgcolor: 'success.50',
+                              border: '1px solid',
+                              borderColor: 'success.200'
+                            }}
+                          >
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                              <Typography fontWeight="medium">
+                                {category}
+                              </Typography>
+                              <Chip 
+                                label={`${data.count} transações`}
+                                size="small"
+                                color="success"
+                                variant="outlined"
+                              />
+                            </Box>
+                            <Typography variant="h6" fontWeight="bold" color="success.main" mt={1}>
                               {formatCurrency(data.total)}
                             </Typography>
                           </Box>
                         ))}
-                      </Paper>
-                    </Grid>
-                  )}
+                      </Stack>
+                    </Paper>
+                  </Grid>
+                )}
 
-                  {summary.byCategory.EXPENSE && Object.keys(summary.byCategory.EXPENSE).length > 0 && (
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="h6" gutterBottom mt={3}>
-                        Despesas por Categoria
+                {summary.byCategory.EXPENSE && Object.keys(summary.byCategory.EXPENSE).length > 0 && (
+                  <Grid item xs={12} md={6}>
+                    <Paper elevation={2} sx={{ p: 3, borderRadius: 2, mt: 2 }}>
+                      <Typography variant="h6" fontWeight="bold" gutterBottom>
+                        ❤️ Despesas por Categoria
                       </Typography>
-                      <Paper elevation={1} sx={{ p: 2 }}>
+                      <Stack spacing={2}>
                         {Object.entries(summary.byCategory.EXPENSE).map(([category, data]) => (
-                          <Box key={category} display="flex" justifyContent="space-between" mb={1}>
-                            <Typography>
-                              {category} ({data.count})
-                            </Typography>
-                            <Typography fontWeight="bold" color="error.main">
+                          <Box 
+                            key={category} 
+                            sx={{ 
+                              p: 2, 
+                              borderRadius: 1, 
+                              bgcolor: 'error.50',
+                              border: '1px solid',
+                              borderColor: 'error.200'
+                            }}
+                          >
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                              <Typography fontWeight="medium">
+                                {category}
+                              </Typography>
+                              <Chip 
+                                label={`${data.count} transações`}
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                              />
+                            </Box>
+                            <Typography variant="h6" fontWeight="bold" color="error.main" mt={1}>
                               {formatCurrency(data.total)}
                             </Typography>
                           </Box>
                         ))}
-                      </Paper>
-                    </Grid>
-                  )}
-                </>
-              ) : (
-                <Grid item xs={12}>
-                  <Paper sx={{ p: 3 }}>
-                    <Typography align="center">
-                      Nenhuma informação financeira disponível para o período selecionado.
-                    </Typography>
-                  </Paper>
-                </Grid>
-              )}
-            </>
-          )}
-        </Grid>
+                      </Stack>
+                    </Paper>
+                  </Grid>
+                )}
+              </Grid>
+            ) : (
+              <Paper 
+                elevation={2} 
+                sx={{ 
+                  p: 6, 
+                  textAlign: 'center', 
+                  borderRadius: 2,
+                  background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+                }}
+              >
+                <AccountBalanceIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  Nenhuma informação financeira disponível
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Não há dados para o período selecionado: {format(startDate, 'dd/MM/yyyy')} a {format(endDate, 'dd/MM/yyyy')}
+                </Typography>
+              </Paper>
+            )}
+          </Box>
+        )}
       </Box>
 
       {/* Formulário de Transação */}

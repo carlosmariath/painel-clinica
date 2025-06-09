@@ -98,30 +98,26 @@ const Clients = memo(() => {
         
         await Promise.all(data.map(async (client) => {
           try {
-            const clientSubscriptions = await subscriptionService.getSubscriptions(client.id);
+            const subscriptionsResponse = await subscriptionService.getSubscriptions(client.id);
             
-            // Log de debug para verificar as assinaturas carregadas
-            if (client.name.toLowerCase().includes('carlos')) {
-              console.log(`[DEBUG] Cliente: ${client.name} (ID: ${client.id})`);
-              console.log(`[DEBUG] Assinaturas encontradas:`, clientSubscriptions);
-              console.log(`[DEBUG] Status das assinaturas:`, clientSubscriptions.map(sub => ({
-                id: sub.id,
-                status: sub.status,
-                planName: sub.therapyPlan?.name,
-                startDate: sub.startDate,
-                endDate: sub.endDate
-              })));
-            }
+            // Extrair dados do formato paginado se necessário
+            const clientSubscriptions = Array.isArray(subscriptionsResponse) 
+              ? subscriptionsResponse 
+              : (subscriptionsResponse?.data && Array.isArray(subscriptionsResponse.data)) 
+                ? subscriptionsResponse.data 
+                : [];
             
-            if (clientSubscriptions.length > 0) {
+            
+            if (Array.isArray(clientSubscriptions) && clientSubscriptions.length > 0) {
               subscriptionsByClient[client.id] = clientSubscriptions;
             }
           } catch (subscriptionError) {
             console.error(`Erro ao carregar assinaturas para o cliente ${client.id}:`, subscriptionError);
+            // Não interromper o carregamento por causa de um erro em um cliente específico
+            // Apenas log do erro e continuar com os próximos clientes
           }
         }));
         
-        console.log('[DEBUG] Todas as assinaturas carregadas:', subscriptionsByClient);
         
         setSubscriptions(subscriptionsByClient);
       } catch (clientError) {

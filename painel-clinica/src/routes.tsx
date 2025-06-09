@@ -20,6 +20,7 @@ import TherapyPlans from './pages/TherapyPlans';
 import Subscriptions from './pages/Subscriptions';
 import Finance from './pages/Finance';
 import TherapistAvailability from './pages/TherapistAvailability';
+import UserSettings from './pages/UserSettings';
 
 import TherapyPlanDetails from './pages/TherapyPlanDetails';
 
@@ -81,6 +82,7 @@ const AppRoutes = () => {
           <Route path="/planos/:id" element={<TherapyPlanDetails />} />
           <Route path="/assinaturas" element={<Subscriptions />} />
           <Route path="/financas" element={<Finance />} />
+          <Route path="/user-settings" element={<UserSettings />} />
         </Route>
         {/* Rota de fallback - redireciona para dashboard ou login dependendo da autenticação */}
         <Route path="*" element={<Navigate to="/" />} />

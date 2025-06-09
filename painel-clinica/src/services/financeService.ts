@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { API_URL } from '../config';
+import api from '../api';
 
 export type TransactionType = 'REVENUE' | 'EXPENSE';
 
@@ -81,7 +80,6 @@ export const financeService = {
     branchId?: string,
     categoryId?: string
   ) => {
-    let url = `${API_URL}/finance/transactions`;
     const params = new URLSearchParams();
     
     if (startDate) params.append('startDate', startDate);
@@ -91,102 +89,99 @@ export const financeService = {
     if (branchId) params.append('branchId', branchId);
     if (categoryId) params.append('categoryId', categoryId);
     
-    if (params.toString()) url += `?${params.toString()}`;
+    const url = `/finance/transactions${params.toString() ? `?${params.toString()}` : ''}`;
     
-    const response = await axios.get(url);
+    const response = await api.get(url);
     return response.data;
   },
 
   getTransactionById: async (id: string) => {
-    const response = await axios.get(`${API_URL}/finance/transactions/${id}`);
+    const response = await api.get(`/finance/transactions/${id}`);
     return response.data;
   },
 
   createTransaction: async (transactionData: Omit<FinancialTransaction, 'id'>) => {
-    const response = await axios.post(`${API_URL}/finance/transactions`, transactionData);
+    const response = await api.post(`/finance/transactions`, transactionData);
     return response.data;
   },
 
   updateTransaction: async (id: string, transactionData: Partial<FinancialTransaction>) => {
-    const response = await axios.patch(`${API_URL}/finance/transactions/${id}`, transactionData);
+    const response = await api.patch(`/finance/transactions/${id}`, transactionData);
     return response.data;
   },
 
   deleteTransaction: async (id: string) => {
-    const response = await axios.delete(`${API_URL}/finance/transactions/${id}`);
+    const response = await api.delete(`/finance/transactions/${id}`);
     return response.data;
   },
 
   // Categorias Financeiras
   getCategories: async (type?: TransactionType) => {
-    let url = `${API_URL}/finance/categories`;
-    if (type) url += `?type=${type}`;
+    const url = `/finance/categories${type ? `?type=${type}` : ''}`;
     
-    const response = await axios.get(url);
+    const response = await api.get(url);
     return response.data;
   },
 
   getCategoryById: async (id: string) => {
-    const response = await axios.get(`${API_URL}/finance/categories/${id}`);
+    const response = await api.get(`/finance/categories/${id}`);
     return response.data;
   },
 
   createCategory: async (categoryData: Omit<FinanceCategory, 'id' | '_count'>) => {
-    const response = await axios.post(`${API_URL}/finance/categories`, categoryData);
+    const response = await api.post(`/finance/categories`, categoryData);
     return response.data;
   },
 
   updateCategory: async (id: string, categoryData: Partial<FinanceCategory>) => {
-    const response = await axios.patch(`${API_URL}/finance/categories/${id}`, categoryData);
+    const response = await api.patch(`/finance/categories/${id}`, categoryData);
     return response.data;
   },
 
   deleteCategory: async (id: string) => {
-    const response = await axios.delete(`${API_URL}/finance/categories/${id}`);
+    const response = await api.delete(`/finance/categories/${id}`);
     return response.data;
   },
 
   // Métodos de Pagamento
   getPaymentMethods: async (onlyActive: boolean = false) => {
-    let url = `${API_URL}/finance/payment-methods`;
-    if (onlyActive) url += `?onlyActive=true`;
+    const url = `/finance/payment-methods${onlyActive ? '?onlyActive=true' : ''}`;
     
-    const response = await axios.get(url);
+    const response = await api.get(url);
     return response.data;
   },
 
   getPaymentMethodById: async (id: string) => {
-    const response = await axios.get(`${API_URL}/finance/payment-methods/${id}`);
+    const response = await api.get(`/finance/payment-methods/${id}`);
     return response.data;
   },
 
   createPaymentMethod: async (methodData: Omit<PaymentMethod, 'id' | '_count'>) => {
-    const response = await axios.post(`${API_URL}/finance/payment-methods`, methodData);
+    const response = await api.post(`/finance/payment-methods`, methodData);
     return response.data;
   },
 
   updatePaymentMethod: async (id: string, methodData: Partial<PaymentMethod>) => {
-    const response = await axios.patch(`${API_URL}/finance/payment-methods/${id}`, methodData);
+    const response = await api.patch(`/finance/payment-methods/${id}`, methodData);
     return response.data;
   },
 
   deletePaymentMethod: async (id: string) => {
-    const response = await axios.delete(`${API_URL}/finance/payment-methods/${id}`);
+    const response = await api.delete(`/finance/payment-methods/${id}`);
     return response.data;
   },
 
   // Relatórios Financeiros
   getFinancialSummary: async (startDate?: string, endDate?: string, branchId?: string) => {
-    let url = `${API_URL}/finance/summary`;
     const params = new URLSearchParams();
     
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
     if (branchId) params.append('branchId', branchId);
     
-    if (params.toString()) url += `?${params.toString()}`;
+    const url = `/finance/summary${params.toString() ? `?${params.toString()}` : ''}`;
     
-    const response = await axios.get(url);
+    const response = await api.get(url);
     return response.data as FinancialSummary;
   }
 };
